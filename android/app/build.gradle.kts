@@ -40,19 +40,38 @@ android {
             if (hasKeystore) {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
-                val storeFileProp = keystoreProperties.getProperty("storeFile", "app/upload-keystore.jks")
-                storeFile = if (file(storeFileProp).exists()) {
-                    file(storeFileProp)
-                } else {
-                    rootProject.file(storeFileProp)
+                val storeFileProp = keystoreProperties.getProperty("storeFile", "upload-keystore.jks")
+                storeFile = when {
+                    file(storeFileProp).exists() -> file(storeFileProp)
+                    file("app/$storeFileProp").exists() -> file("app/$storeFileProp")
+                    rootProject.file(storeFileProp).exists() -> rootProject.file(storeFileProp)
+                    rootProject.file("app/$storeFileProp").exists() -> rootProject.file("app/$storeFileProp")
+                    else -> rootProject.file(storeFileProp)
                 }
                 storePassword = keystoreProperties.getProperty("storePassword")
             } else {
-                val debugSigning = getByName("debug")
-                keyAlias = debugSigning.keyAlias
-                keyPassword = debugSigning.keyPassword
-                storeFile = debugSigning.storeFile
-                storePassword = debugSigning.storePassword
+                val fallbackKeystore = file("release-fallback.jks")
+                if (!fallbackKeystore.exists()) {
+                    try {
+                        ProcessBuilder(
+                            "keytool", "-genkey", "-v",
+                            "-keystore", fallbackKeystore.absolutePath,
+                            "-alias", "release",
+                            "-keyalg", "RSA",
+                            "-keysize", "2048",
+                            "-validity", "10000",
+                            "-storepass", "android",
+                            "-keypass", "android",
+                            "-dname", "CN=Release, OU=Mobile, O=Deshi, L=Delhi, S=Delhi, C=IN"
+                        ).inheritIO().start().waitFor()
+                    } catch (e: Exception) {
+                        logger.warn("Could not auto-generate fallback keystore: ${e.message}")
+                    }
+                }
+                keyAlias = "release"
+                keyPassword = "android"
+                storeFile = fallbackKeystore
+                storePassword = "android"
             }
         }
     }

@@ -69,7 +69,22 @@ jobs:
             } > android/key.properties
             echo "Production keystore and key.properties configured."
           else
-            echo "No KEYSTORE_BASE64 secret found; build will use debug signing fallback."
+            echo "No KEYSTORE_BASE64 secret found; generating self-signed release keystore for CI..."
+            keytool -genkey -v -keystore android/app/upload-keystore.jks \
+              -alias upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=PosterMaker, OU=Mobile, O=Deshi, L=Delhi, S=Delhi, C=IN"
+            {
+              echo "storePassword=android"
+              echo "keyPassword=android"
+              echo "keyAlias=upload"
+              echo "storeFile=upload-keystore.jks"
+            } > android/key.properties
+            echo "CI release keystore configured."
           fi
 
       - name: Generate Production Environment Config (--dart-define-from-file)

@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:poster_maker/core/widgets/stroked_text.dart';
+import 'package:poster_maker/features/poster/providers/poster_provider.dart';
 import '../models/user_profile.dart';
-import '../providers/poster_provider.dart';
-import '../widgets/stroked_text.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -378,7 +378,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     onPressed: () async {
                       await provider.pickAndCropProfileImage();
                     },
-                    style: FilledButton.tonalStyleFrom(
+                    style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 6,
@@ -455,7 +455,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     onPressed: () async {
                       await provider.pickAndCropPartySymbolImage();
                     },
-                    style: FilledButton.tonalStyleFrom(
+                    style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 6,

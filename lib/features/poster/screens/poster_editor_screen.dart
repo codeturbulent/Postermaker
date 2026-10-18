@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:poster_maker/core/constants/slogan_bank.dart';
+import 'package:poster_maker/core/utils/image_exporter.dart';
+import 'package:poster_maker/features/profile/screens/profile_edit_screen.dart';
 import '../models/poster_template.dart';
 import '../providers/poster_provider.dart';
-import '../utils/image_exporter.dart';
-import '../utils/slogan_bank.dart';
 import '../widgets/poster_canvas.dart';
-import 'profile_edit_screen.dart';
 
 class PosterEditorScreen extends StatefulWidget {
   const PosterEditorScreen({super.key});
@@ -353,7 +353,7 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    style: FilledButton.tonalStyleFrom(
+                                    style: FilledButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
                                         vertical: 4,

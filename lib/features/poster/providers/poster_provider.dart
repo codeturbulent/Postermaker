@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/poster_template.dart';
-import '../models/user_profile.dart';
+import 'package:poster_maker/features/poster/models/poster_template.dart';
+import 'package:poster_maker/features/profile/models/user_profile.dart';
 
 /// Central state manager for the poster maker application using [ChangeNotifier].
 class PosterProvider extends ChangeNotifier {

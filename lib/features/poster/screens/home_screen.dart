@@ -6,7 +6,7 @@ import '../models/poster_template.dart';
 import '../models/upcoming_occasion.dart';
 import '../providers/poster_provider.dart';
 import 'poster_editor_screen.dart';
-import 'profile_edit_screen.dart';
+import 'package:poster_maker/features/profile/screens/profile_edit_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -393,7 +393,7 @@ class HomeScreen extends StatelessWidget {
             onPressed: () {
               provider.setCategoryFilter(occasion.category);
             },
-            style: FilledButton.tonalStyleFrom(
+            style: FilledButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: const Color(0xFFD84315),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

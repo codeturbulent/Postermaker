@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'providers/poster_provider.dart';
-import 'screens/home_screen.dart';
+import 'package:poster_maker/features/poster/providers/poster_provider.dart';
+import 'package:poster_maker/features/poster/screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,7 +47,7 @@ class DeshiPosterMakerApp extends StatelessWidget {
           textTheme: GoogleFonts.poppinsTextTheme(
             Theme.of(context).textTheme,
           ),
-          cardTheme: CardTheme(
+          cardTheme: CardThemeData(
             elevation: 1.5,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),

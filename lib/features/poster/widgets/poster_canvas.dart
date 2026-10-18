@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/poster_template.dart';
-import '../models/user_profile.dart';
-import 'stroked_text.dart';
+import 'package:poster_maker/features/poster/models/poster_template.dart';
+import 'package:poster_maker/features/profile/models/user_profile.dart';
+import 'package:poster_maker/core/widgets/stroked_text.dart';
 
 /// The central visual compositor widget for the poster maker application.
 ///

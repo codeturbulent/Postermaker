@@ -23,6 +23,7 @@ class StrokedText extends StatelessWidget {
   final int? maxLines;
   final TextOverflow overflow;
   final double height;
+  final double? letterSpacing;
 
   const StrokedText(
     this.text, {
@@ -38,6 +39,7 @@ class StrokedText extends StatelessWidget {
     this.maxLines = 2,
     this.overflow = TextOverflow.ellipsis,
     this.height = 1.3,
+    this.letterSpacing,
   });
 
   TextStyle _resolveBaseTextStyle({required bool isStroke}) {
@@ -68,46 +70,67 @@ class StrokedText extends StatelessWidget {
 
     final color = isStroke ? null : fillColor;
 
-    // Resolve typography from Google Fonts Devanagari family
-    switch (fontFamily) {
-      case 'Yatra One':
-        return GoogleFonts.yatraOne(
+    // Resolve typography dynamically from Google Fonts with safe fallback
+    if (fontFamily != null && fontFamily!.trim().isNotEmpty) {
+      try {
+        return GoogleFonts.getFont(
+          fontFamily!.trim(),
           fontSize: fontSize,
           fontWeight: fontWeight,
           color: color,
           foreground: foregroundPaint,
           shadows: effectiveShadows,
           height: height,
+          letterSpacing: letterSpacing,
         );
-      case 'Rozha One':
-        return GoogleFonts.rozhaOne(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: color,
-          foreground: foregroundPaint,
-          shadows: effectiveShadows,
-          height: height,
-        );
-      case 'Gotu':
-        return GoogleFonts.gotu(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: color,
-          foreground: foregroundPaint,
-          shadows: effectiveShadows,
-          height: height,
-        );
-      case 'Poppins':
-      default:
-        return GoogleFonts.poppins(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: color,
-          foreground: foregroundPaint,
-          shadows: effectiveShadows,
-          height: height,
-        );
+      } catch (_) {
+        switch (fontFamily) {
+          case 'Yatra One':
+            return GoogleFonts.yatraOne(
+              fontSize: fontSize,
+              fontWeight: fontWeight,
+              color: color,
+              foreground: foregroundPaint,
+              shadows: effectiveShadows,
+              height: height,
+              letterSpacing: letterSpacing,
+            );
+          case 'Rozha One':
+            return GoogleFonts.rozhaOne(
+              fontSize: fontSize,
+              fontWeight: fontWeight,
+              color: color,
+              foreground: foregroundPaint,
+              shadows: effectiveShadows,
+              height: height,
+              letterSpacing: letterSpacing,
+            );
+          case 'Gotu':
+            return GoogleFonts.gotu(
+              fontSize: fontSize,
+              fontWeight: fontWeight,
+              color: color,
+              foreground: foregroundPaint,
+              shadows: effectiveShadows,
+              height: height,
+              letterSpacing: letterSpacing,
+            );
+          default:
+            break;
+        }
+      }
     }
+
+    // Default typography fallback
+    return GoogleFonts.poppins(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      foreground: foregroundPaint,
+      shadows: effectiveShadows,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
   }
 
   @override

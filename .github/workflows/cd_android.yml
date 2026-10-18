@@ -103,17 +103,7 @@ jobs:
           flutter pub get
           mkdir -p build/app/outputs/symbols
 
-      - name: Build Android App Bundle (AAB for Play Store)
-        run: |
-          flutter build appbundle \
-            --release \
-            --obfuscate \
-            --split-debug-info=build/app/outputs/symbols \
-            --build-number=${{ github.run_number }} \
-            --dart-define-from-file=config/prod_env.json \
-            --android-skip-build-dependency-validation
-
-      - name: Build Android APK (for Direct Distribution)
+      - name: Build Universal Release APK
         run: |
           flutter build apk \
             --release \
@@ -123,25 +113,12 @@ jobs:
             --dart-define-from-file=config/prod_env.json \
             --android-skip-build-dependency-validation
 
-      - name: Prepare Release Artifacts
+      - name: Prepare Release Artifact
         run: |
           mkdir -p release_artifacts
-          cp build/app/outputs/bundle/release/app-release.aab "release_artifacts/${{ env.RELEASE_NAME }}.aab"
           cp build/app/outputs/flutter-apk/app-release.apk "release_artifacts/${{ env.RELEASE_NAME }}.apk"
 
-      - name: Upload to Google Play Store (Internal Track)
-        if: ${{ env.PLAY_STORE_KEY != '' }}
-        uses: r0adkll/upload-google-play@v1
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
-          packageName: com.deshi.postermaker
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: internal
-          status: completed
-        env:
-          PLAY_STORE_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-
-      - name: Publish Artifacts to GitHub Releases
+      - name: Publish APK to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v-${{ env.RELEASE_NAME }}
@@ -154,12 +131,9 @@ jobs:
             - **Commit**: `${{ github.sha }}`
             - **Branch**: `${{ github.ref_name }}`
 
-            ### 📦 Download Release Artifacts
-            - **Google Play App Bundle (AAB)**: `${{ env.RELEASE_NAME }}.aab`
-            - **Universal Release APK**: `${{ env.RELEASE_NAME }}.apk`
-          files: |
-            release_artifacts/${{ env.RELEASE_NAME }}.aab
-            release_artifacts/${{ env.RELEASE_NAME }}.apk
+            ### 📦 Download Release APK
+            - **Direct APK**: `${{ env.RELEASE_NAME }}.apk`
+          files: release_artifacts/${{ env.RELEASE_NAME }}.apk
           draft: false
           prerelease: false
         env:

@@ -68,6 +68,23 @@ jobs:
           fi
           APK_NAME="${CLEAN_MSG}_$(TZ="Asia/Kolkata" date +"%Y-%m-%d_%H-%M-%S")"
           echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
+      - name: Getting APK Name
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'manual_build' }}
+        run: |
+          # 1. Take only the first line and strip carriage returns
+          FIRST_LINE=$(printf '%s' "$COMMIT_MSG" | head -n 1 | tr -d '\r')
+          # 2. Replace any non-alphanumeric character (including spaces) with an underscore
+          CLEAN_MSG=$(printf '%s' "$FIRST_LINE" | tr -c 'a-zA-Z0-9' '_' | tr -s '_' | sed 's/^_//;s/_$//' | cut -c1-25)
+          # 3. Remove trailing underscore if cut landed on one
+          CLEAN_MSG=$(printf '%s' "$CLEAN_MSG" | sed 's/_$//')
+          if [ -z "$CLEAN_MSG" ]; then
+            CLEAN_MSG="build"
+          fi
+          TIMESTAMP=$(TZ="Asia/Kolkata" date +"%Y-%m-%d_%H-%M-%S")
+          APK_NAME="${CLEAN_MSG}_${TIMESTAMP}"
+          echo "Generated APK_NAME: $APK_NAME"
+          echo "APK_NAME=${APK_NAME}" >> "$GITHUB_ENV"
 
       - name: Build APK
         env:

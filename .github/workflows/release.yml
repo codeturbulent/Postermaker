@@ -81,7 +81,7 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g"
         run: |
           flutter pub get
-          flutter build apk --release --no-shrink --android-skip-build-dependency-validation
+          flutter build apk --release --android-skip-build-dependency-validation
 
       - name: Prepare Release Artifacts
         run: |

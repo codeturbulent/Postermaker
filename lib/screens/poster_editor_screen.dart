@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/poster_template.dart';
 import '../providers/poster_provider.dart';
 import '../utils/image_exporter.dart';
+import '../utils/slogan_bank.dart';
 import '../widgets/poster_canvas.dart';
 import 'profile_edit_screen.dart';
 
@@ -28,6 +29,19 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
     Color(0xFF212121), // Slate Black
   ];
 
+  final List<String> _stickerBadges = const [
+    '🪔', // Diya
+    '🕉️', // Om
+    '🌾', // Kisan / Wheat
+    '🤝', // Namaste / Appeal
+    '🇮🇳', // Tiranga
+    '🗳️', // Vote / Ballot
+    '🚩', // Dhwaja
+    '🌺', // Kamal / Lotus
+    '✨', // Star
+    '🎉', // Celebration
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +54,100 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
   void dispose() {
     _greetingController.dispose();
     super.dispose();
+  }
+
+  void _openSloganPickerModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return DefaultTabController(
+          length: SloganBank.categories.length,
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.65,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'सुझाव बैंक (Slogan Library)',
+                      style: GoogleFonts.rozhaOne(fontSize: 18),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                TabBar(
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: SloganBank.categories.map((c) {
+                    return Tab(
+                      child: Row(
+                        children: [
+                          Text(c.icon),
+                          const SizedBox(width: 6),
+                          Text(
+                            c.title.split(' ').first,
+                            style: GoogleFonts.poppins(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TabBarView(
+                    children: SloganBank.categories.map((cat) {
+                      return ListView.separated(
+                        itemCount: cat.slogans.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, idx) {
+                          final slogan = cat.slogans[idx];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            title: Text(
+                              slogan,
+                              style: GoogleFonts.gotu(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.touch_app_outlined,
+                              size: 18,
+                            ),
+                            onTap: () {
+                              final provider = context.read<PosterProvider>();
+                              provider.setCustomGreeting(slogan);
+                              _greetingController.text = slogan;
+                              Navigator.pop(ctx);
+                            },
+                          );
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleSaveToGallery() async {
@@ -146,12 +254,42 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                   vertical: 8.0,
                 ),
                 children: [
+                  // 1-Tap Aspect Ratio Selector (1:1 Post, 4:5 Banner, 9:16 WhatsApp Status)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: SegmentedButton<double>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 1.0,
+                          label: Text('1:1 पोस्ट'),
+                          icon: Icon(Icons.crop_square, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: 0.8,
+                          label: Text('4:5 बैनर'),
+                          icon: Icon(Icons.crop_portrait, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: 9 / 16,
+                          label: Text('9:16 स्टेटस'),
+                          icon: Icon(Icons.stay_current_portrait, size: 16),
+                        ),
+                      ],
+                      selected: {provider.currentAspectRatio},
+                      onSelectionChanged: (set) {
+                        if (set.isNotEmpty) {
+                          provider.setAspectRatio(set.first);
+                        }
+                      },
+                    ),
+                  ),
+
                   // 1. Live Interactive Canvas Preview
                   Center(
                     child: Container(
-                      constraints: const BoxConstraints(
+                      constraints: BoxConstraints(
                         maxWidth: 420,
-                        maxHeight: 480,
+                        maxHeight: provider.currentAspectRatio < 0.65 ? 540 : 460,
                       ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16.0),
@@ -170,12 +308,15 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                         greetingText: provider.customGreeting,
                         photoAlignment: provider.photoAlignment,
                         ribbonColor: provider.ribbonColor,
+                        aspectRatio: provider.currentAspectRatio,
+                        showTopLeadersStrip: provider.showTopLeadersStrip,
+                        badgeIcon: provider.selectedBadgeIcon,
                       ),
                     ),
                   ),
                   const SizedBox(height: 18),
 
-                  // 2. Custom Greeting Editor on the fly
+                  // 2. Custom Greeting Editor on the fly + Slogan Bank 1-Tap Pick
                   Card(
                     elevation: 1,
                     shape: RoundedRectangleBorder(
@@ -199,22 +340,45 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              TextButton(
-                                onPressed: () {
-                                  _greetingController.text = provider
-                                      .selectedTemplate.defaultGreetingText;
-                                  provider.setCustomGreeting(
-                                    provider.selectedTemplate.defaultGreetingText,
-                                  );
-                                },
-                                child: Text(
-                                  'रीसेट करें',
-                                  style: GoogleFonts.poppins(fontSize: 12),
-                                ),
+                              Row(
+                                children: [
+                                  FilledButton.tonalIcon(
+                                    onPressed: () =>
+                                        _openSloganPickerModal(context),
+                                    icon: const Icon(Icons.auto_stories, size: 14),
+                                    label: Text(
+                                      'सुझाव चुनें',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: FilledButton.tonalStyleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  TextButton(
+                                    onPressed: () {
+                                      _greetingController.text = provider
+                                          .selectedTemplate.defaultGreetingText;
+                                      provider.setCustomGreeting(
+                                        provider.selectedTemplate.defaultGreetingText,
+                                      );
+                                    },
+                                    child: Text(
+                                      'रीसेट',
+                                      style: GoogleFonts.poppins(fontSize: 11),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           TextField(
                             controller: _greetingController,
                             decoration: InputDecoration(
@@ -238,7 +402,187 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // 3. Customization Controls: Photo Alignment & Ribbon Color
+                  // 3. Auspicious Sticker & Badge Tray
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'शुभ प्रतीक चिन्ह / स्टीकर (1-Tap Badges)',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 42,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _stickerBadges.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 8),
+                              itemBuilder: (context, index) {
+                                final badge = _stickerBadges[index];
+                                final isSelected =
+                                    provider.selectedBadgeIcon == badge;
+                                return InkWell(
+                                  onTap: () => provider.setBadgeIcon(
+                                      isSelected ? null : badge),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? theme.colorScheme.primaryContainer
+                                          : Colors.grey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? theme.colorScheme.primary
+                                            : Colors.transparent,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        badge,
+                                        style: const TextStyle(fontSize: 20),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 4. "Netaji / Senior Leaders" Top Photo Strip
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'शीर्ष नेता / मार्गदर्शक फोटो (Top Leaders)',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Switch(
+                                value: provider.showTopLeadersStrip,
+                                onChanged: (val) {
+                                  provider.toggleTopLeadersStrip();
+                                },
+                              ),
+                            ],
+                          ),
+                          if (provider.showTopLeadersStrip) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                ...List.generate(
+                                  provider.profile.topLeaderImagePaths.length,
+                                  (index) {
+                                    return Stack(
+                                      children: [
+                                        Container(
+                                          margin:
+                                              const EdgeInsets.only(right: 10),
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: const Color(0xFFFFB300),
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: const CircleAvatar(
+                                            backgroundColor: Color(0xFF37474F),
+                                            child: Icon(Icons.person,
+                                                color: Colors.white, size: 22),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: -4,
+                                          right: 6,
+                                          child: InkWell(
+                                            onTap: () => provider
+                                                .removeTopLeaderPhoto(index),
+                                            child: const CircleAvatar(
+                                              radius: 9,
+                                              backgroundColor: Colors.red,
+                                              child: Icon(Icons.close,
+                                                  size: 10, color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                if (provider.profile.topLeaderImagePaths.length < 4)
+                                  InkWell(
+                                    onTap: () => provider.addTopLeaderPhoto(),
+                                    child: Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: theme.colorScheme.primary,
+                                          width: 1.5,
+                                        ),
+                                        color: theme
+                                            .colorScheme.primaryContainer
+                                            .withOpacity(0.4),
+                                      ),
+                                      child: Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        size: 20,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 5. Customization Controls: Photo Alignment & Ribbon Color
                   Card(
                     elevation: 1,
                     shape: RoundedRectangleBorder(
@@ -302,8 +646,7 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                               itemBuilder: (context, index) {
                                 final color = _availableRibbonColors[index];
                                 final isSelected =
-                                    provider.ribbonColor.value ==
-                                        color.value;
+                                    provider.ribbonColor.value == color.value;
                                 return InkWell(
                                   onTap: () => provider.setRibbonColor(color),
                                   borderRadius: BorderRadius.circular(20),
@@ -346,7 +689,7 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 4. Quick Template Switcher Horizontal Carousel
+                  // 6. Quick Template Switcher Horizontal Carousel
                   Text(
                     'अन्य टेम्पलेट चुनें',
                     style: GoogleFonts.poppins(
@@ -482,7 +825,8 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                               ),
                             ),
                             style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF1B5E20), // Festive Green
+                              backgroundColor:
+                                  const Color(0xFF1B5E20), // Festive Green
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),

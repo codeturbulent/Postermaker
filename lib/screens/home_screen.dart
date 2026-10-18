@@ -3,12 +3,128 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/poster_template.dart';
+import '../models/upcoming_occasion.dart';
 import '../providers/poster_provider.dart';
 import 'poster_editor_screen.dart';
 import 'profile_edit_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  void _showProfileSwitcherSheet(BuildContext context, PosterProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'प्रोफ़ाइल चुनें (Switch Profile)',
+                      style: GoogleFonts.rozhaOne(fontSize: 18),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                Text(
+                  'परिवार या अलग-अलग नेताओं के लिए प्रोफ़ाइल बदलें',
+                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: provider.allProfiles.length,
+                    itemBuilder: (context, idx) {
+                      final p = provider.allProfiles[idx];
+                      final isSelected = idx == provider.activeProfileIndex;
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFFD84315),
+                          backgroundImage: p.profileImagePath != null &&
+                                  File(p.profileImagePath!).existsSync()
+                              ? FileImage(File(p.profileImagePath!))
+                              : null,
+                          child: p.profileImagePath == null
+                              ? const Icon(Icons.person, color: Colors.white)
+                              : null,
+                        ),
+                        title: Text(
+                          p.fullName.isNotEmpty ? p.fullName : 'अनाम सदस्य',
+                          style: GoogleFonts.poppins(
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: Text(
+                          p.designation.isNotEmpty ? p.designation : 'पदनाम',
+                          style: GoogleFonts.poppins(fontSize: 12),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle,
+                                color: Color(0xFF1B5E20))
+                            : (provider.allProfiles.length > 1
+                                ? IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18, color: Colors.red),
+                                    onPressed: () {
+                                      provider.deleteProfile(idx);
+                                      Navigator.pop(ctx);
+                                    },
+                                  )
+                                : null),
+                        onTap: () {
+                          provider.switchProfile(idx);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const Divider(),
+                if (provider.allProfiles.length < 5)
+                  ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0xFFEEEEEE),
+                      child: Icon(Icons.add, color: Color(0xFFD84315)),
+                    ),
+                    title: Text(
+                      '+ नई प्रोफ़ाइल जोड़ें (Add New Profile)',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFD84315),
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      provider.addNewProfile();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileEditScreen(),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,18 +158,12 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // Quick Profile Button with live avatar
+          // Multi-Profile Switcher Chip
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: InkWell(
               borderRadius: BorderRadius.circular(24.0),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileEditScreen(),
-                  ),
-                );
-              },
+              onTap: () => _showProfileSwitcherSheet(context, provider),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10.0,
@@ -81,6 +191,8 @@ class HomeScreen extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_drop_down, size: 18),
                   ],
                 ),
               ),
@@ -93,7 +205,10 @@ class HomeScreen extends StatelessWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Category Filter Chips Carousel
+                // 1. "Upcoming Occasions" Smart Calendar Highlight Banner
+                _buildUpcomingOccasionBanner(context, provider),
+
+                // 2. Category Filter Chips Carousel
                 _buildCategoryFilters(context, provider),
 
                 // Active category title and count
@@ -125,7 +240,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
 
-                // 2-Column GridView of Templates
+                // 3. 2-Column GridView of Templates
                 Expanded(
                   child: provider.filteredTemplates.isEmpty
                       ? _buildEmptyState(context)
@@ -183,6 +298,116 @@ class HomeScreen extends StatelessWidget {
       radius: 14,
       backgroundColor: Color(0xFFD84315),
       child: Icon(Icons.person, size: 16, color: Colors.white),
+    );
+  }
+
+  /// "Upcoming Occasions" Smart Calendar Highlight Banner
+  Widget _buildUpcomingOccasionBanner(
+      BuildContext context, PosterProvider provider) {
+    final occasion = UpcomingOccasion.occasions.first;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFBF360C), Color(0xFFD84315), Color(0xFFF57C00)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              occasion.icon,
+              style: const TextStyle(fontSize: 24),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        occasion.badgeText,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFFD84315),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      occasion.dateText,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  occasion.title,
+                  style: GoogleFonts.rozhaOne(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  occasion.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.gotu(
+                    fontSize: 11,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.tonal(
+            onPressed: () {
+              provider.setCategoryFilter(occasion.category);
+            },
+            style: FilledButton.tonalStyleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFFD84315),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            ),
+            child: Text(
+              'बनाएं',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -257,7 +482,7 @@ class HomeScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16.0),
         side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
         ),
       ),
       child: InkWell(
@@ -299,7 +524,7 @@ class HomeScreen extends StatelessWidget {
                             child: Icon(
                               Icons.brush_rounded,
                               size: 36,
-                              color: template.accentColor.withValues(alpha: 0.8),
+                              color: template.accentColor.withOpacity(0.8),
                             ),
                           ),
                         );
@@ -317,7 +542,7 @@ class HomeScreen extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
+                        color: Colors.black.withOpacity(0.65),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -347,7 +572,7 @@ class HomeScreen extends StatelessWidget {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withValues(alpha: 0.85),
+                            Colors.black.withOpacity(0.85),
                           ],
                         ),
                       ),

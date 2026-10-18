@@ -8,26 +8,40 @@ import '../models/user_profile.dart';
 
 /// Central state manager for the poster maker application using [ChangeNotifier].
 class PosterProvider extends ChangeNotifier {
-  static const String _profileStorageKey = 'saved_user_profile_json_v1';
+  static const String _allProfilesStorageKey = 'saved_user_profiles_list_v2';
+  static const String _activeProfileIndexKey = 'active_profile_index_v2';
 
-  UserProfile _profile = UserProfile.sample();
+  List<UserProfile> _allProfiles = [UserProfile.sample()];
+  int _activeProfileIndex = 0;
+
   late PosterTemplate _selectedTemplate;
   String _customGreeting = '';
   late PhotoAlignment _photoAlignment;
   late Color _ribbonColor;
   TemplateCategory? _selectedCategoryFilter;
 
+  // New viral regional features
+  double _currentAspectRatio = 0.8; // 1.0 (1:1), 0.8 (4:5), 9/16 (0.5625 WhatsApp Status)
+  bool _showTopLeadersStrip = true;
+  String? _selectedBadgeIcon = '🪔';
+
   bool _isLoading = true;
   bool _isExporting = false;
 
   final ImagePicker _picker = ImagePicker();
 
-  UserProfile get profile => _profile;
+  UserProfile get profile => _allProfiles[_activeProfileIndex];
+  List<UserProfile> get allProfiles => List.unmodifiable(_allProfiles);
+  int get activeProfileIndex => _activeProfileIndex;
+
   PosterTemplate get selectedTemplate => _selectedTemplate;
   String get customGreeting => _customGreeting;
   PhotoAlignment get photoAlignment => _photoAlignment;
   Color get ribbonColor => _ribbonColor;
   TemplateCategory? get selectedCategoryFilter => _selectedCategoryFilter;
+  double get currentAspectRatio => _currentAspectRatio;
+  bool get showTopLeadersStrip => _showTopLeadersStrip;
+  String? get selectedBadgeIcon => _selectedBadgeIcon;
   bool get isLoading => _isLoading;
   bool get isExporting => _isExporting;
 
@@ -42,55 +56,113 @@ class PosterProvider extends ChangeNotifier {
   }
 
   PosterProvider() {
-    // Select first template as initial state
     _selectedTemplate = PosterTemplate.dummyTemplates.first;
     _customGreeting = _selectedTemplate.defaultGreetingText;
     _photoAlignment = _selectedTemplate.photoAlignment;
     _ribbonColor = _selectedTemplate.primaryColor;
+    _currentAspectRatio = _selectedTemplate.aspectRatio;
   }
 
-  /// Initializes provider by loading persisted user profile from [SharedPreferences].
+  /// Initializes provider by loading persisted profiles list from [SharedPreferences].
   Future<void> init() async {
     _isLoading = true;
     notifyListeners();
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedJsonString = prefs.getString(_profileStorageKey);
+      final savedListJson = prefs.getString(_allProfilesStorageKey);
+      final savedIndex = prefs.getInt(_activeProfileIndexKey) ?? 0;
 
-      if (savedJsonString != null && savedJsonString.isNotEmpty) {
-        final Map<String, dynamic> decoded =
-            jsonDecode(savedJsonString) as Map<String, dynamic>;
-        _profile = UserProfile.fromJson(decoded);
+      if (savedListJson != null && savedListJson.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(savedListJson) as List<dynamic>;
+        _allProfiles = decoded
+            .map((item) => UserProfile.fromJson(item as Map<String, dynamic>))
+            .toList();
+
+        if (_allProfiles.isEmpty) {
+          _allProfiles = [UserProfile.sample()];
+        }
+
+        _activeProfileIndex =
+            (savedIndex >= 0 && savedIndex < _allProfiles.length)
+                ? savedIndex
+                : 0;
       } else {
-        // First run: Seed with authentic sample profile so user has an immediate preview
-        _profile = UserProfile.sample();
-        await _persistProfile(_profile);
+        _allProfiles = [UserProfile.sample()];
+        _activeProfileIndex = 0;
+        await _persistAllProfiles();
       }
     } catch (e) {
-      debugPrint('Error loading saved profile: $e');
-      _profile = UserProfile.sample();
+      debugPrint('Error loading saved profiles: $e');
+      _allProfiles = [UserProfile.sample()];
+      _activeProfileIndex = 0;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Persists profile to local storage and updates state
-  Future<void> updateProfile(UserProfile newProfile) async {
-    _profile = newProfile;
-    notifyListeners();
-    await _persistProfile(newProfile);
-  }
-
-  Future<void> _persistProfile(UserProfile profileToSave) async {
+  /// Persists all profiles to SharedPreferences
+  Future<void> _persistAllProfiles() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonString = jsonEncode(profileToSave.toJson());
-      await prefs.setString(_profileStorageKey, jsonString);
+      final listJson =
+          jsonEncode(_allProfiles.map((p) => p.toJson()).toList());
+      await prefs.setString(_allProfilesStorageKey, listJson);
+      await prefs.setInt(_activeProfileIndexKey, _activeProfileIndex);
     } catch (e) {
-      debugPrint('Error saving profile to SharedPreferences: $e');
+      debugPrint('Error persisting profiles: $e');
     }
+  }
+
+  /// Updates active profile data
+  Future<void> updateProfile(UserProfile updated) async {
+    _allProfiles[_activeProfileIndex] = updated;
+    notifyListeners();
+    await _persistAllProfiles();
+  }
+
+  /// Switches active profile (Family / Client Mode)
+  Future<void> switchProfile(int index) async {
+    if (index >= 0 && index < _allProfiles.length) {
+      _activeProfileIndex = index;
+      notifyListeners();
+      await _persistAllProfiles();
+    }
+  }
+
+  /// Adds a new candidate/family profile
+  Future<void> addNewProfile({String? name, String? designation}) async {
+    if (_allProfiles.length >= 6) return;
+
+    final newProfile = UserProfile(
+      id: 'profile_${DateTime.now().millisecondsSinceEpoch}',
+      fullName: name ?? 'नया सदस्य',
+      designation: designation ?? 'पदनाम',
+      tagline: 'जन सेवा ही धर्म',
+      phoneNumber: '+91 ',
+      socialHandle: '@',
+      profileImagePath: null,
+      partyOrSymbolImagePath: null,
+      topLeaderImagePaths: const [],
+    );
+
+    _allProfiles.add(newProfile);
+    _activeProfileIndex = _allProfiles.length - 1;
+    notifyListeners();
+    await _persistAllProfiles();
+  }
+
+  /// Deletes a candidate profile (keeps at least 1)
+  Future<void> deleteProfile(int index) async {
+    if (_allProfiles.length <= 1) return;
+
+    _allProfiles.removeAt(index);
+    if (_activeProfileIndex >= _allProfiles.length) {
+      _activeProfileIndex = _allProfiles.length - 1;
+    }
+    notifyListeners();
+    await _persistAllProfiles();
   }
 
   /// Sets the currently active poster template
@@ -99,12 +171,31 @@ class PosterProvider extends ChangeNotifier {
     _customGreeting = template.defaultGreetingText;
     _photoAlignment = template.photoAlignment;
     _ribbonColor = template.primaryColor;
+    _currentAspectRatio = template.aspectRatio;
     notifyListeners();
   }
 
   /// Customizes greeting text on the fly
   void setCustomGreeting(String greeting) {
     _customGreeting = greeting;
+    notifyListeners();
+  }
+
+  /// 1-Tap Aspect Ratio Switcher (1:1 Post, 4:5 Banner, 9:16 WhatsApp Status)
+  void setAspectRatio(double ratio) {
+    _currentAspectRatio = ratio;
+    notifyListeners();
+  }
+
+  /// Toggles visibility of top senior leader portraits bar
+  void toggleTopLeadersStrip() {
+    _showTopLeadersStrip = !_showTopLeadersStrip;
+    notifyListeners();
+  }
+
+  /// 1-Tap sticker / auspicious symbol selection
+  void setBadgeIcon(String? icon) {
+    _selectedBadgeIcon = icon;
     notifyListeners();
   }
 
@@ -170,12 +261,66 @@ class PosterProvider extends ChangeNotifier {
       );
 
       final finalPath = croppedFile?.path ?? pickedFile.path;
-      final updatedProfile = _profile.copyWith(profileImagePath: finalPath);
+      final updatedProfile = profile.copyWith(profileImagePath: finalPath);
       await updateProfile(updatedProfile);
       return true;
     } catch (e) {
       debugPrint('Error picking profile image: $e');
       return false;
+    }
+  }
+
+  /// Adds a senior leader / mentor photo to the top strip (up to 4 leaders)
+  Future<bool> addTopLeaderPhoto() async {
+    try {
+      if (profile.topLeaderImagePaths.length >= 4) return false;
+
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+
+      if (pickedFile == null) return false;
+
+      final CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: pickedFile.path,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'नेताजी फ़ोटो क्रॉप करें',
+            toolbarColor: const Color(0xFFD84315),
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: true,
+            aspectRatioPresets: [CropAspectRatioPreset.square],
+          ),
+          IOSUiSettings(
+            title: 'नेताजी फ़ोटो क्रॉप करें',
+            aspectRatioPresets: [CropAspectRatioPreset.square],
+          ),
+        ],
+      );
+
+      final finalPath = croppedFile?.path ?? pickedFile.path;
+      final updatedList = List<String>.from(profile.topLeaderImagePaths)
+        ..add(finalPath);
+      final updatedProfile =
+          profile.copyWith(topLeaderImagePaths: updatedList);
+      await updateProfile(updatedProfile);
+      return true;
+    } catch (e) {
+      debugPrint('Error adding leader photo: $e');
+      return false;
+    }
+  }
+
+  /// Removes a leader photo at index
+  Future<void> removeTopLeaderPhoto(int index) async {
+    if (index >= 0 && index < profile.topLeaderImagePaths.length) {
+      final updatedList = List<String>.from(profile.topLeaderImagePaths)
+        ..removeAt(index);
+      final updatedProfile =
+          profile.copyWith(topLeaderImagePaths: updatedList);
+      await updateProfile(updatedProfile);
     }
   }
 
@@ -213,7 +358,7 @@ class PosterProvider extends ChangeNotifier {
 
       final finalPath = croppedFile?.path ?? pickedFile.path;
       final updatedProfile =
-          _profile.copyWith(partyOrSymbolImagePath: finalPath);
+          profile.copyWith(partyOrSymbolImagePath: finalPath);
       await updateProfile(updatedProfile);
       return true;
     } catch (e) {
@@ -224,13 +369,13 @@ class PosterProvider extends ChangeNotifier {
 
   /// Clears selected profile photo
   Future<void> clearProfileImage() async {
-    final updated = _profile.copyWith(clearProfileImage: true);
+    final updated = profile.copyWith(clearProfileImage: true);
     await updateProfile(updated);
   }
 
   /// Clears selected emblem / badge
   Future<void> clearPartySymbolImage() async {
-    final updated = _profile.copyWith(clearPartyOrSymbolImage: true);
+    final updated = profile.copyWith(clearPartyOrSymbolImage: true);
     await updateProfile(updated);
   }
 }

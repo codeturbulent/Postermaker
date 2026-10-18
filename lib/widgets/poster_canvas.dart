@@ -9,7 +9,7 @@ import 'stroked_text.dart';
 ///
 /// Encapsulated inside an [AspectRatio] and [LayoutBuilder] so that all visual elements,
 /// font sizes, ribbons, and photo frames scale proportionally and identically across
-/// preview devices and high-definition raster exports (1080x1080 / 1080x1350).
+/// preview devices and high-definition raster exports (1:1, 4:5, and 9:16 WhatsApp Status).
 class PosterCanvas extends StatelessWidget {
   final GlobalKey repaintKey;
   final PosterTemplate template;
@@ -17,6 +17,9 @@ class PosterCanvas extends StatelessWidget {
   final String greetingText;
   final PhotoAlignment photoAlignment;
   final Color ribbonColor;
+  final double aspectRatio;
+  final bool showTopLeadersStrip;
+  final String? badgeIcon;
 
   const PosterCanvas({
     super.key,
@@ -26,18 +29,27 @@ class PosterCanvas extends StatelessWidget {
     required this.greetingText,
     required this.photoAlignment,
     required this.ribbonColor,
+    this.aspectRatio = 0.8,
+    this.showTopLeadersStrip = true,
+    this.badgeIcon = '🪔',
   });
 
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: template.aspectRatio,
+      aspectRatio: aspectRatio,
       child: RepaintBoundary(
         key: repaintKey,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final w = constraints.maxWidth;
             final h = constraints.maxHeight;
+
+            // Compute vertical scale factor based on aspect ratio (longer for 9:16 Status)
+            final isStatus916 = aspectRatio < 0.65;
+            final headerTop = isStatus916 ? h * 0.04 : h * 0.025;
+            final greetingTop = isStatus916 ? h * 0.16 : h * 0.13;
+            final userFrameBottom = isStatus916 ? h * 0.19 : h * 0.175;
 
             return ClipRRect(
               borderRadius: BorderRadius.circular(12.0),
@@ -70,10 +82,25 @@ class PosterCanvas extends StatelessWidget {
                   ),
 
                   // -----------------------------------------------------------
+                  // LAYER 1.5: "NETAJI / SENIOR LEADERS" TOP ROW STRIP
+                  // -----------------------------------------------------------
+                  if (showTopLeadersStrip &&
+                      profile.topLeaderImagePaths.isNotEmpty)
+                    Positioned(
+                      top: isStatus916 ? h * 0.015 : h * 0.01,
+                      left: w * 0.04,
+                      right: w * 0.04,
+                      child: _buildTopLeadersStrip(w, h),
+                    ),
+
+                  // -----------------------------------------------------------
                   // LAYER 2: TOP HEADER & EMBLEM / CATEGORY BADGE
                   // -----------------------------------------------------------
                   Positioned(
-                    top: h * 0.03,
+                    top: showTopLeadersStrip &&
+                            profile.topLeaderImagePaths.isNotEmpty
+                        ? headerTop + (h * 0.055)
+                        : headerTop,
                     left: w * 0.04,
                     right: w * 0.04,
                     child: _buildHeaderRibbon(w, h),
@@ -83,16 +110,19 @@ class PosterCanvas extends StatelessWidget {
                   // LAYER 3: STROKED HINDI GREETING & SUB-GREETING
                   // -----------------------------------------------------------
                   Positioned(
-                    top: h * 0.13,
+                    top: showTopLeadersStrip &&
+                            profile.topLeaderImagePaths.isNotEmpty
+                        ? greetingTop + (h * 0.04)
+                        : greetingTop,
                     left: w * 0.05,
                     right: w * 0.05,
                     child: _buildGreetingSection(w, h),
                   ),
 
                   // -----------------------------------------------------------
-                  // LAYER 4: USER CUTOUT / PHOTO FRAME LAYER
+                  // LAYER 4: USER CUTOUT / PHOTO FRAME LAYER (with soft fade)
                   // -----------------------------------------------------------
-                  _buildUserPhotoFrame(w, h),
+                  _buildUserPhotoFrame(w, h, userFrameBottom),
 
                   // -----------------------------------------------------------
                   // LAYER 5, 6, 7: FOOTER NAMEPLATE, DESIGNATION & CONTACT STRIP
@@ -154,7 +184,49 @@ class PosterCanvas extends StatelessWidget {
     );
   }
 
-  /// Top header with decorative badge, emblem, and festival tag
+  /// Netaji / Senior Party Leaders Top Gold-Rimmed Badges Bar
+  Widget _buildTopLeadersStrip(double w, double h) {
+    final leaderSize = w * 0.11;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: profile.topLeaderImagePaths.take(4).map((imagePath) {
+        final file = File(imagePath);
+        final fileExists = file.existsSync();
+
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: w * 0.015),
+          width: leaderSize,
+          height: leaderSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFD54F), Color(0xFFFF8F00), Color(0xFFFFE082)],
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x88000000),
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+            border: Border.all(color: Colors.white, width: 1.5),
+          ),
+          padding: const EdgeInsets.all(2.0),
+          child: ClipOval(
+            child: fileExists
+                ? Image.file(file, fit: BoxFit.cover)
+                : Container(
+                    color: const Color(0xFF37474F),
+                    child: const Icon(Icons.person, color: Colors.white, size: 16),
+                  ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Top header with decorative badge, emblem, and sticker badge
   Widget _buildHeaderRibbon(double w, double h) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -184,7 +256,7 @@ class PosterCanvas extends StatelessWidget {
           ),
         ),
 
-        // Center/Right: Category / Auspicious Tag Pill
+        // Center/Right: Category / Auspicious Tag Pill with Selected Badge Sticker
         Container(
           padding: EdgeInsets.symmetric(
             horizontal: w * 0.04,
@@ -208,12 +280,20 @@ class PosterCanvas extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.star,
-                color: template.accentColor,
-                size: w * 0.04,
-              ),
-              SizedBox(width: w * 0.015),
+              if (badgeIcon != null && badgeIcon!.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(right: w * 0.015),
+                  child: Text(
+                    badgeIcon!,
+                    style: TextStyle(fontSize: w * 0.045),
+                  ),
+                )
+              else
+                Icon(
+                  Icons.star,
+                  color: template.accentColor,
+                  size: w * 0.04,
+                ),
               Text(
                 template.badgeText,
                 style: GoogleFonts.rozhaOne(
@@ -292,12 +372,12 @@ class PosterCanvas extends StatelessWidget {
   }
 
   /// User Cutout / Photo frame positioned above the bottom ribbon
-  Widget _buildUserPhotoFrame(double w, double h) {
+  Widget _buildUserPhotoFrame(double w, double h, double bottomOffset) {
     final isLeft = photoAlignment == PhotoAlignment.left;
     final frameSize = w * 0.42;
 
     return Positioned(
-      bottom: h * 0.175,
+      bottom: bottomOffset,
       left: isLeft ? w * 0.04 : null,
       right: !isLeft ? w * 0.04 : null,
       child: Container(
@@ -415,7 +495,7 @@ class PosterCanvas extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 ribbonColor,
-                ribbonColor.withValues(alpha: 0.9),
+                ribbonColor.withOpacity(0.9),
                 template.primaryColor,
               ],
             ),
@@ -597,7 +677,7 @@ class _DecorativePosterBackdropPainter extends CustomPainter {
         center: Alignment.topCenter,
         radius: 1.2,
         colors: [
-          secondaryColor.withValues(alpha: 0.8),
+          secondaryColor.withOpacity(0.8),
           primaryColor,
           const Color(0xFF101010),
         ],
@@ -607,7 +687,7 @@ class _DecorativePosterBackdropPainter extends CustomPainter {
 
     // Decorative rays
     final rayPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.08)
+      ..color = Colors.white.withOpacity(0.08)
       ..style = PaintingStyle.fill;
 
     final center = Offset(size.width / 2, 0);

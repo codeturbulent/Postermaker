@@ -1,4 +1,5 @@
 class UserProfile {
+  final String id;
   final String fullName;
   final String designation;
   final String tagline;
@@ -6,8 +7,10 @@ class UserProfile {
   final String socialHandle;
   final String? profileImagePath;
   final String? partyOrSymbolImagePath;
+  final List<String> topLeaderImagePaths;
 
   const UserProfile({
+    required this.id,
     required this.fullName,
     required this.designation,
     required this.tagline,
@@ -15,11 +18,13 @@ class UserProfile {
     required this.socialHandle,
     this.profileImagePath,
     this.partyOrSymbolImagePath,
+    this.topLeaderImagePaths = const [],
   });
 
   /// Factory constructor for a default sample profile in rural/regional Indian context.
   factory UserProfile.sample() {
     return const UserProfile(
+      id: 'profile_default_sample',
       fullName: 'राजेश कुमार यादव',
       designation: 'प्रधान - ग्राम पंचायत बलीपुर',
       tagline: 'आपकी सेवा में सदैव तत्पर',
@@ -27,12 +32,14 @@ class UserProfile {
       socialHandle: '@RajeshYadavPradhan',
       profileImagePath: null,
       partyOrSymbolImagePath: null,
+      topLeaderImagePaths: [],
     );
   }
 
   /// Factory constructor for an empty initial profile.
   factory UserProfile.empty() {
-    return const UserProfile(
+    return UserProfile(
+      id: 'profile_${DateTime.now().millisecondsSinceEpoch}',
       fullName: '',
       designation: '',
       tagline: '',
@@ -40,10 +47,12 @@ class UserProfile {
       socialHandle: '',
       profileImagePath: null,
       partyOrSymbolImagePath: null,
+      topLeaderImagePaths: const [],
     );
   }
 
   UserProfile copyWith({
+    String? id,
     String? fullName,
     String? designation,
     String? tagline,
@@ -51,10 +60,12 @@ class UserProfile {
     String? socialHandle,
     String? profileImagePath,
     String? partyOrSymbolImagePath,
+    List<String>? topLeaderImagePaths,
     bool clearProfileImage = false,
     bool clearPartyOrSymbolImage = false,
   }) {
     return UserProfile(
+      id: id ?? this.id,
       fullName: fullName ?? this.fullName,
       designation: designation ?? this.designation,
       tagline: tagline ?? this.tagline,
@@ -66,11 +77,13 @@ class UserProfile {
       partyOrSymbolImagePath: clearPartyOrSymbolImage
           ? null
           : (partyOrSymbolImagePath ?? this.partyOrSymbolImagePath),
+      topLeaderImagePaths: topLeaderImagePaths ?? this.topLeaderImagePaths,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'fullName': fullName,
       'designation': designation,
       'tagline': tagline,
@@ -78,11 +91,14 @@ class UserProfile {
       'socialHandle': socialHandle,
       'profileImagePath': profileImagePath,
       'partyOrSymbolImagePath': partyOrSymbolImagePath,
+      'topLeaderImagePaths': topLeaderImagePaths,
     };
   }
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
+      id: json['id'] as String? ??
+          'profile_${DateTime.now().millisecondsSinceEpoch}',
       fullName: json['fullName'] as String? ?? '',
       designation: json['designation'] as String? ?? '',
       tagline: json['tagline'] as String? ?? '',
@@ -90,6 +106,10 @@ class UserProfile {
       socialHandle: json['socialHandle'] as String? ?? '',
       profileImagePath: json['profileImagePath'] as String?,
       partyOrSymbolImagePath: json['partyOrSymbolImagePath'] as String?,
+      topLeaderImagePaths: (json['topLeaderImagePaths'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const [],
     );
   }
 

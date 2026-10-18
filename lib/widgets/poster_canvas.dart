@@ -191,7 +191,7 @@ class PosterCanvas extends StatelessWidget {
             vertical: h * 0.008,
           ),
           decoration: BoxDecoration(
-            color: template.primaryColor.withValues(alpha: 0.95),
+            color: template.primaryColor.withOpacity(0.95),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: template.accentColor,
@@ -273,7 +273,7 @@ class PosterCanvas extends StatelessWidget {
             vertical: h * 0.004,
           ),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.55),
+            color: Colors.black.withOpacity(0.55),
             borderRadius: BorderRadius.circular(6.0),
           ),
           child: Text(

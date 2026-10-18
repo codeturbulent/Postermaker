@@ -302,8 +302,8 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                               itemBuilder: (context, index) {
                                 final color = _availableRibbonColors[index];
                                 final isSelected =
-                                    provider.ribbonColor.toARGB32() ==
-                                        color.toARGB32();
+                                    provider.ribbonColor.value ==
+                                        color.value;
                                 return InkWell(
                                   onTap: () => provider.setRibbonColor(color),
                                   borderRadius: BorderRadius.circular(20),

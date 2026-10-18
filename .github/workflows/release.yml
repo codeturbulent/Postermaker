@@ -1,22 +1,33 @@
-name: Release Build & Publish
+name: Build APK and Upload to Release
 
+# Triggers the workflow on push events to the main or instbuild branches
 on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
+      - instbuild
+# Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    name: Build & Release Android APK / AAB
+  build-and-upload:
+    name: Build APK and Upload to Release
     runs-on: ubuntu-latest
 
     steps:
+      - name: Free Disk Space
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: false    
+          remove_dotnet: true
+          remove_haskell: true
+          remove_tool_cache: false 
+          remove_swap: true
+          rm_cmd: "rmz"
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -31,79 +42,51 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.x'
           channel: 'stable'
           cache: true
 
-      - name: Get Dependencies
-        run: flutter pub get
-
-      - name: Run Unit Tests
-        run: flutter test
-
-      - name: Extract Version Info
-        id: version_info
+      - name: Getting APK Name
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message || github.event.workflow_run.head_commit.message || github.event.pull_request.title }}
         run: |
-          RAW_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //')
-          VERSION_NAME=$(echo "$RAW_VERSION" | cut -d '+' -f 1)
-          BUILD_NUMBER=$(echo "$RAW_VERSION" | cut -d '+' -f 2)
-          echo "raw_version=$RAW_VERSION" >> $GITHUB_OUTPUT
-          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
-          
-          # If triggered by tag, use tag name; otherwise create v<version_name> tag
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG_NAME="${{ github.ref_name }}"
-          else
-            TAG_NAME="v${VERSION_NAME}-b${BUILD_NUMBER}"
+          CLEAN_MSG=$(echo "$COMMIT_MSG" | head -n 1 | sed 's/[^a-zA-Z0-9._-]/_/g')
+          if [ -z "$CLEAN_MSG" ]; then
+            CLEAN_MSG="build"
           fi
-          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          # Limit length to prevent invalid git tag names
+          CLEAN_MSG=$(echo "$CLEAN_MSG" | cut -c1-30)
+          APK_NAME="${CLEAN_MSG}_$(TZ="Asia/Kolkata" date +"%Y-%m-%d_%H-%M-%S")"
+          echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
 
-      - name: Build Release APK
-        run: flutter build apk --release
+      - name: Build APK
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
+        run: |
+          flutter clean
+          flutter pub get
+          flutter build apk --release
 
-      - name: Build Release App Bundle (AAB)
-        run: flutter build appbundle --release
-
-      - name: Package Artifacts
+      - name: Prepare Release Artifacts
         run: |
           mkdir -p release_artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk release_artifacts/Postermaker-v${{ steps.version_info.outputs.version_name }}-release.apk
-          cp build/app/outputs/bundle/release/app-release.aab release_artifacts/Postermaker-v${{ steps.version_info.outputs.version_name }}-release.aab
-          cd release_artifacts
-          sha256sum * > SHA256SUMS.txt
-          cd ..
+          cp build/app/outputs/flutter-apk/app-release.apk release_artifacts/${{ env.APK_NAME }}.apk
 
-      - name: Create or Update GitHub Release
+      - name: Push to Release Tab
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version_info.outputs.tag_name }}
-          name: "Postermaker ${{ steps.version_info.outputs.tag_name }} Release"
+          tag_name: ${{ env.APK_NAME }}
+          name: "Release ${{ env.APK_NAME }}"
           body: |
-            ## 🚀 Postermaker Automated Release (${{ steps.version_info.outputs.tag_name }})
+            ## 🚀 Automated Release Build
             
-            ### ✨ Highlights
-            - **Production-Ready Flutter 3.24+ / Dart 3+ Architecture**
-            - **High-Definition Poster Compositor** (`1080x1080` & `1080x1350` crisp PNG export via `RepaintBoundary`)
-            - **Devanagari Typography Protection** (Dual-pass `StrokedText` with `StrutStyle` height safety for Hindi matras)
-            - **Authentic Regional Templates**:
-              - 🪔 *दीपावली महापर्व* (Festival Golden Saffron)
-              - 🗳️ *विजयी भव: पंचायत चुनाव* (Panchayat Election Banner)
-              - 🚩 *युवा नेता - क्रांति दिवस* (Samajwadi / Socialist Style)
-              - 🇮🇳 *राष्ट्र प्रथम - विकास पर्व* (BJP Style Saffron & Blue)
-              - 🎂 *जन्मदिन की अनंत बधाई* (Birthday Felicitation)
-            - **Direct Sharing & Gallery Saving**: Native WhatsApp / Social share (`share_plus`) and direct storage (`gal`).
+            - **Release Tag**: `${{ env.APK_NAME }}`
+            - **Branch**: `${{ github.ref_name }}`
+            - **Commit**: `${{ github.sha }}`
+            - **Commit Message**: ${{ github.event.head_commit.message }}
             
-            ### 📦 Artifacts
-            - **Release APK**: `Postermaker-v${{ steps.version_info.outputs.version_name }}-release.apk` (Installable on Android devices)
-            - **App Bundle**: `Postermaker-v${{ steps.version_info.outputs.version_name }}-release.aab` (Ready for Google Play Store upload)
-            
-            ---
-            *Built automatically via GitHub Actions CI/CD.*
-          files: |
-            release_artifacts/*.apk
-            release_artifacts/*.aab
-            release_artifacts/SHA256SUMS.txt
+            ### 📦 Download APK
+            - **Direct APK**: `${{ env.APK_NAME }}.apk`
+          files: release_artifacts/${{ env.APK_NAME }}.apk
           draft: false
           prerelease: false
         env:

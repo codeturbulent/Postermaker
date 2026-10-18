@@ -9,7 +9,8 @@ plugins {
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
+val hasKeystore = keystorePropertiesFile.exists()
+if (hasKeystore) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
@@ -36,30 +37,23 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            val keyAliasProp = keystoreProperties.getProperty("keyAlias")
-            val keyPasswordProp = keystoreProperties.getProperty("keyPassword")
-            val storeFileProp = keystoreProperties.getProperty("storeFile")
-            val storePasswordProp = keystoreProperties.getProperty("storePassword")
-
-            if (storeFileProp != null && file(storeFileProp).exists()) {
-                keyAlias = keyAliasProp
-                keyPassword = keyPasswordProp
-                storeFile = file(storeFileProp)
-                storePassword = storePasswordProp
-            } else {
-                val debugSigning = getByName("debug")
-                keyAlias = debugSigning.keyAlias
-                keyPassword = debugSigning.keyPassword
-                storeFile = debugSigning.storeFile
-                storePassword = debugSigning.storePassword
+        if (hasKeystore) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile", "app/upload-keystore.jks"))
+                storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

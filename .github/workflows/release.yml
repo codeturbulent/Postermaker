@@ -1,12 +1,10 @@
 name: Build APK and Upload to Release
 
-# Triggers the workflow on push events to the main or instbuild branches
 on:
   push:
     branches:
       - main
       - instbuild
-# Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 permissions:
@@ -19,13 +17,13 @@ jobs:
 
     steps:
       - name: Free Disk Space
-        uses: endersonmenezes/free-disk-space@v3
+        uses: endersonmenezes/free-disk-space@v4
         with:
-          remove_android: false    
+          remove_android: false
           remove_dotnet: true
           remove_haskell: true
-          remove_tool_cache: false 
-          remove_swap: true
+          remove_tool_cache: false
+          remove_swap: false # CRITICAL: Keep swap enabled so Gradle doesn't crash with OOM (Exit 137)
           rm_cmd: "rmz"
 
       - name: Checkout Code
@@ -45,44 +43,56 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Generate Android Folder (If Cloud-Only Repo)
+        run: |
+          if [ ! -d "android" ]; then
+            echo "No android/ directory found. Generating platform files..."
+            flutter create --platforms=android .
+          fi
+
+      - name: Ensure UCropActivity & Permissions in AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "UCropActivity" "$MANIFEST"; then
+            sed -i 's|</application>|        <activity android:name="com.yalantis.ucrop.UCropActivity" android:screenOrientation="portrait" android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>\n    </application>|g' "$MANIFEST"
+          fi
+
       - name: Getting APK Name
         env:
-          COMMIT_MSG: ${{ github.event.head_commit.message || github.event.workflow_run.head_commit.message || github.event.pull_request.title }}
+          COMMIT_MSG: ${{ github.event.head_commit.message || github.event.workflow_run.head_commit.message || 'manual_build' }}
         run: |
-          CLEAN_MSG=$(echo "$COMMIT_MSG" | head -n 1 | sed 's/[^a-zA-Z0-9._-]/_/g')
+          # Strip non-alphanumeric chars, collapse multiple underscores, and strip leading/trailing underscores
+          CLEAN_MSG=$(echo "$COMMIT_MSG" \vert{} head -n 1 \vert{} sed 's/[^a-zA-Z0-9]/_/g' \vert{} sed 's/__*/_/g' \vert{} sed 's/^_//;s/_$//' | cut -c1-25)
           if [ -z "$CLEAN_MSG" ]; then
             CLEAN_MSG="build"
           fi
-          # Limit length to prevent invalid git tag names
-          CLEAN_MSG=$(echo "$CLEAN_MSG" | cut -c1-30)
           APK_NAME="${CLEAN_MSG}_$(TZ="Asia/Kolkata" date +"%Y-%m-%d_%H-%M-%S")"
           echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
 
       - name: Build APK
         env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
+          # 3g heap + 1g metaspace leaves enough RAM for Dart gen_snapshot on a 7GB runner
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g"
         run: |
-          flutter clean
           flutter pub get
-          flutter build apk --release --android-skip-build-dependency-validation
+          flutter build apk --release --no-shrink --android-skip-build-dependency-validation
 
       - name: Prepare Release Artifacts
         run: |
           mkdir -p release_artifacts
-          cp build/app/outputs/flutter-apk/app-release.apk release_artifacts/${{ env.APK_NAME }}.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "release_artifacts/${{ env.APK_NAME }}.apk"
 
       - name: Push to Release Tab
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.APK_NAME }}
+          tag_name: v-${{ env.APK_NAME }}
           name: "Release ${{ env.APK_NAME }}"
           body: |
             ## 🚀 Automated Release Build
             
-            - **Release Tag**: `${{ env.APK_NAME }}`
+            - **Release Tag**: `v-${{ env.APK_NAME }}`
             - **Branch**: `${{ github.ref_name }}`
             - **Commit**: `${{ github.sha }}`
-            - **Commit Message**: ${{ github.event.head_commit.message }}
             
             ### 📦 Download APK
             - **Direct APK**: `${{ env.APK_NAME }}.apk`

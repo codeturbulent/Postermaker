@@ -158,6 +158,18 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          // Dynamic Theme Mode Toggle (Light / Dark)
+          IconButton(
+            icon: Icon(
+              provider.themeMode == ThemeMode.dark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+            ),
+            tooltip: provider.themeMode == ThemeMode.dark
+                ? 'लाइट मोड (Light Mode)'
+                : 'डार्क मोड (Dark Mode)',
+            onPressed: () => provider.toggleThemeMode(),
+          ),
           // Multi-Profile Switcher Chip
           Padding(
             padding: const EdgeInsets.only(right: 12.0),

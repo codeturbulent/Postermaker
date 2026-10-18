@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:poster_maker/features/poster/models/canvas_element.dart';
 import 'package:poster_maker/features/poster/models/poster_template.dart';
 import 'package:poster_maker/features/profile/models/user_profile.dart';
 
@@ -10,6 +11,7 @@ import 'package:poster_maker/features/profile/models/user_profile.dart';
 class PosterProvider extends ChangeNotifier {
   static const String _allProfilesStorageKey = 'saved_user_profiles_list_v2';
   static const String _activeProfileIndexKey = 'active_profile_index_v2';
+  static const String _themeModeStorageKey = 'theme_mode_preference_v1';
 
   List<UserProfile> _allProfiles = [UserProfile.sample()];
   int _activeProfileIndex = 0;
@@ -20,10 +22,19 @@ class PosterProvider extends ChangeNotifier {
   late Color _ribbonColor;
   TemplateCategory? _selectedCategoryFilter;
 
+  // Theme Mode (Material 3 Light / Dark / System)
+  ThemeMode _themeMode = ThemeMode.system;
+
   // New viral regional features
   double _currentAspectRatio = 0.8; // 1.0 (1:1), 0.8 (4:5), 9/16 (0.5625 WhatsApp Status)
   bool _showTopLeadersStrip = true;
   String? _selectedBadgeIcon = '🪔';
+
+  // Interactive Draggable Canvas Elements & Custom Background
+  List<CanvasElement> _canvasElements = [];
+  String? _selectedElementId;
+  String? _customBackgroundUrl;
+  String? _customBackgroundImagePath;
 
   bool _isLoading = true;
   bool _isExporting = false;
@@ -39,11 +50,25 @@ class PosterProvider extends ChangeNotifier {
   PhotoAlignment get photoAlignment => _photoAlignment;
   Color get ribbonColor => _ribbonColor;
   TemplateCategory? get selectedCategoryFilter => _selectedCategoryFilter;
+  ThemeMode get themeMode => _themeMode;
   double get currentAspectRatio => _currentAspectRatio;
   bool get showTopLeadersStrip => _showTopLeadersStrip;
   String? get selectedBadgeIcon => _selectedBadgeIcon;
   bool get isLoading => _isLoading;
   bool get isExporting => _isExporting;
+
+  List<CanvasElement> get canvasElements => List.unmodifiable(_canvasElements);
+  String? get selectedElementId => _selectedElementId;
+  CanvasElement? get selectedElement {
+    if (_selectedElementId == null) return null;
+    try {
+      return _canvasElements.firstWhere((e) => e.id == _selectedElementId);
+    } catch (_) {
+      return null;
+    }
+  }
+  String? get customBackgroundUrl => _customBackgroundUrl;
+  String? get customBackgroundImagePath => _customBackgroundImagePath;
 
   /// Returns templates filtered by currently active category chip
   List<PosterTemplate> get filteredTemplates {
@@ -72,6 +97,13 @@ class PosterProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final savedListJson = prefs.getString(_allProfilesStorageKey);
       final savedIndex = prefs.getInt(_activeProfileIndexKey) ?? 0;
+      final themeIndex = prefs.getInt(_themeModeStorageKey);
+
+      if (themeIndex != null &&
+          themeIndex >= 0 &&
+          themeIndex < ThemeMode.values.length) {
+        _themeMode = ThemeMode.values[themeIndex];
+      }
 
       if (savedListJson != null && savedListJson.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(savedListJson) as List<dynamic>;
@@ -219,6 +251,113 @@ class PosterProvider extends ChangeNotifier {
 
   void setIsExporting(bool exporting) {
     _isExporting = exporting;
+    notifyListeners();
+  }
+
+  /// Changes application theme mode (Light, Dark, System) and persists to SharedPreferences
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_themeModeStorageKey, mode.index);
+    } catch (e) {
+      debugPrint('Error saving theme mode: $e');
+    }
+  }
+
+  /// Toggles between Light and Dark mode
+  Future<void> toggleThemeMode() async {
+    if (_themeMode == ThemeMode.dark) {
+      await setThemeMode(ThemeMode.light);
+    } else {
+      await setThemeMode(ThemeMode.dark);
+    }
+  }
+
+  /// Adds a new interactive movable layer (text, sticker, or photo) onto the canvas
+  void addElement(CanvasElement element) {
+    _canvasElements.add(element);
+    _selectedElementId = element.id;
+    notifyListeners();
+  }
+
+  /// Updates properties or coordinates of an existing canvas element
+  void updateElement(CanvasElement element) {
+    final idx = _canvasElements.indexWhere((e) => e.id == element.id);
+    if (idx != -1) {
+      _canvasElements[idx] = element;
+      notifyListeners();
+    }
+  }
+
+  /// Deletes a canvas element by id
+  void removeElement(String id) {
+    _canvasElements.removeWhere((e) => e.id == id);
+    if (_selectedElementId == id) {
+      _selectedElementId = null;
+    }
+    notifyListeners();
+  }
+
+  /// Selects or deselects an active element on the canvas
+  void selectElement(String? id) {
+    _selectedElementId = id;
+    notifyListeners();
+  }
+
+  /// Re-orders element to top of layer stack
+  void bringElementToFront(String id) {
+    final idx = _canvasElements.indexWhere((e) => e.id == id);
+    if (idx != -1 && idx < _canvasElements.length - 1) {
+      final elem = _canvasElements.removeAt(idx);
+      _canvasElements.add(elem);
+      notifyListeners();
+    }
+  }
+
+  /// Re-orders element to bottom of layer stack
+  void sendElementToBack(String id) {
+    final idx = _canvasElements.indexWhere((e) => e.id == id);
+    if (idx > 0) {
+      final elem = _canvasElements.removeAt(idx);
+      _canvasElements.insert(0, elem);
+      notifyListeners();
+    }
+  }
+
+  /// Clones selected element slightly offset
+  void duplicateElement(String id) {
+    final idx = _canvasElements.indexWhere((e) => e.id == id);
+    if (idx != -1) {
+      final original = _canvasElements[idx];
+      final clone = original.copyWith(
+        id: 'elem_${DateTime.now().millisecondsSinceEpoch}',
+        dx: (original.dx + 0.05).clamp(0.05, 0.95),
+        dy: (original.dy + 0.05).clamp(0.05, 0.95),
+      );
+      addElement(clone);
+    }
+  }
+
+  /// Removes all custom layers from the canvas
+  void clearAllElements() {
+    _canvasElements.clear();
+    _selectedElementId = null;
+    notifyListeners();
+  }
+
+  /// Sets a searched image or custom graphic as the full poster backdrop
+  void setCustomBackground({String? url, String? filePath}) {
+    _customBackgroundUrl = url;
+    _customBackgroundImagePath = filePath;
+    notifyListeners();
+  }
+
+  /// Reverts to template default background
+  void clearCustomBackground() {
+    _customBackgroundUrl = null;
+    _customBackgroundImagePath = null;
     notifyListeners();
   }
 

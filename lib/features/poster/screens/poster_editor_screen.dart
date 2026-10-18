@@ -1,9 +1,14 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:poster_maker/core/constants/slogan_bank.dart';
 import 'package:poster_maker/core/utils/image_exporter.dart';
+import 'package:poster_maker/features/background_remover/screens/background_remover_screen.dart';
+import 'package:poster_maker/features/image_search/widgets/image_search_sheet.dart';
+import 'package:poster_maker/features/poster/models/canvas_element.dart';
 import 'package:poster_maker/features/profile/screens/profile_edit_screen.dart';
+import 'package:poster_maker/features/typography/widgets/typography_editor_sheet.dart';
 import '../models/poster_template.dart';
 import '../providers/poster_provider.dart';
 import '../widgets/poster_canvas.dart';
@@ -218,6 +223,91 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
     }
   }
 
+  void _openImageSearchModal(BuildContext context) {
+    final provider = context.read<PosterProvider>();
+    ImageSearchSheet.show(
+      context: context,
+      onSelectAsBackground: (imageUrl) {
+        provider.setCustomBackground(url: imageUrl);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'नया बैकग्राउंड लागू हो गया!',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: const Color(0xFF1B5E20),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+      onAddAsCanvasLayer: (imageUrl, isSticker) {
+        final newElem = CanvasElement(
+          id: 'layer_${DateTime.now().millisecondsSinceEpoch}',
+          type: isSticker ? CanvasElementType.sticker : CanvasElementType.image,
+          imagePath: imageUrl,
+          isCutout: isSticker,
+          dx: 0.5,
+          dy: 0.45,
+          width: 0.35,
+          height: 0.35,
+        );
+        provider.addElement(newElem);
+      },
+    );
+  }
+
+  void _addNewTextLayer(BuildContext context) {
+    final provider = context.read<PosterProvider>();
+    final newElem = CanvasElement(
+      id: 'text_${DateTime.now().millisecondsSinceEpoch}',
+      type: CanvasElementType.text,
+      text: 'शुभकामनाएं',
+      dx: 0.5,
+      dy: 0.40,
+      fontSize: 26.0,
+      textColor: const Color(0xFFFFD54F),
+      strokeColor: const Color(0xFF212121),
+      strokeWidth: 3.5,
+      fontFamily: 'Rozha One',
+    );
+    provider.addElement(newElem);
+
+    TypographyEditorSheet.show(
+      context: context,
+      initialElement: newElem,
+      onElementUpdated: (updated) => provider.updateElement(updated),
+    );
+  }
+
+  Future<void> _openBackgroundRemoverStudio(BuildContext context) async {
+    final provider = context.read<PosterProvider>();
+    File? initFile;
+    if (provider.profile.profileImagePath != null) {
+      final f = File(provider.profile.profileImagePath!);
+      if (f.existsSync()) initFile = f;
+    }
+
+    final File? cutout = await Navigator.of(context).push<File>(
+      MaterialPageRoute(
+        builder: (_) => BackgroundRemoverScreen(initialImageFile: initFile),
+      ),
+    );
+
+    if (cutout != null && mounted) {
+      final newElem = CanvasElement(
+        id: 'cutout_${DateTime.now().millisecondsSinceEpoch}',
+        type: CanvasElementType.image,
+        imagePath: cutout.path,
+        isCutout: true,
+        dx: 0.5,
+        dy: 0.5,
+        width: 0.45,
+        height: 0.45,
+      );
+      provider.addElement(newElem);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -230,6 +320,24 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
           style: GoogleFonts.rozhaOne(fontSize: 19),
         ),
         actions: [
+          // Theme Toggle
+          IconButton(
+            icon: Icon(
+              provider.themeMode == ThemeMode.dark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+            ),
+            tooltip: provider.themeMode == ThemeMode.dark
+                ? 'लाइट मोड (Light Mode)'
+                : 'डार्क मोड (Dark Mode)',
+            onPressed: () => provider.toggleThemeMode(),
+          ),
+          // Image Search Direct Action
+          IconButton(
+            icon: const Icon(Icons.image_search_rounded),
+            tooltip: 'इमेज खोजें (Search Images)',
+            onPressed: () => _openImageSearchModal(context),
+          ),
           IconButton(
             icon: const Icon(Icons.edit_note_rounded),
             tooltip: 'प्रोफ़ाइल बदलें',
@@ -256,7 +364,7 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                 children: [
                   // 1-Tap Aspect Ratio Selector (1:1 Post, 4:5 Banner, 9:16 WhatsApp Status)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
+                    padding: const EdgeInsets.only(bottom: 8.0),
                     child: SegmentedButton<double>(
                       segments: const [
                         ButtonSegment(
@@ -284,7 +392,117 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                     ),
                   ),
 
-                  // 1. Live Interactive Canvas Preview
+                  // Quick Action Studio Bar: Image Search, Text, Cutout, Slogans
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          FilledButton.tonalIcon(
+                            onPressed: () => _openImageSearchModal(context),
+                            icon: const Icon(Icons.search_rounded, size: 16),
+                            label: Text(
+                              'इमेज खोजें',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.tonalIcon(
+                            onPressed: () => _addNewTextLayer(context),
+                            icon: const Icon(Icons.title_rounded, size: 16),
+                            label: Text(
+                              '+ नया टेक्स्ट',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.tonalIcon(
+                            onPressed: () => _openBackgroundRemoverStudio(context),
+                            icon: const Icon(Icons.auto_fix_high_rounded, size: 16),
+                            label: Text(
+                              'BG इरेज़र',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.tonalIcon(
+                            onPressed: () => _openSloganPickerModal(context),
+                            icon: const Icon(Icons.auto_stories, size: 16),
+                            label: Text(
+                              'सुझाव बैंक',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Active Custom Background Indicator Banner
+                  if (provider.customBackgroundUrl != null ||
+                      provider.customBackgroundImagePath != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.wallpaper_rounded,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'कस्टम सर्च बैकग्राउंड सक्रिय है',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => provider.clearCustomBackground(),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: Text(
+                              'रीसेट',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // 1. Live Interactive Drag & Drop Canvas Preview
                   Center(
                     child: Container(
                       constraints: BoxConstraints(
@@ -311,6 +529,43 @@ class _PosterEditorScreenState extends State<PosterEditorScreen> {
                         aspectRatio: provider.currentAspectRatio,
                         showTopLeadersStrip: provider.showTopLeadersStrip,
                         badgeIcon: provider.selectedBadgeIcon,
+                        customBackgroundUrl: provider.customBackgroundUrl,
+                        customBackgroundImagePath:
+                            provider.customBackgroundImagePath,
+                        canvasElements: provider.canvasElements,
+                        selectedElementId: provider.selectedElementId,
+                        onElementTap: (id) => provider.selectElement(id),
+                        onElementMove: (id, dx, dy) {
+                          try {
+                            final elem = provider.canvasElements
+                                .firstWhere((e) => e.id == id);
+                            provider.updateElement(
+                                elem.copyWith(dx: dx, dy: dy));
+                          } catch (_) {}
+                        },
+                        onElementScale: (id, scale) {
+                          try {
+                            final elem = provider.canvasElements
+                                .firstWhere((e) => e.id == id);
+                            provider.updateElement(
+                                elem.copyWith(scale: scale));
+                          } catch (_) {}
+                        },
+                        onElementDelete: (id) => provider.removeElement(id),
+                        onElementDuplicate: (id) =>
+                            provider.duplicateElement(id),
+                        onElementEdit: (elem) {
+                          if (elem.type == CanvasElementType.text) {
+                            TypographyEditorSheet.show(
+                              context: context,
+                              initialElement: elem,
+                              onElementUpdated: (updated) =>
+                                  provider.updateElement(updated),
+                            );
+                          }
+                        },
+                        onCanvasTap: () => provider.selectElement(null),
+                        isExporting: provider.isExporting,
                       ),
                     ),
                   ),

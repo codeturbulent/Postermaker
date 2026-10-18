@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:poster_maker/core/widgets/stroked_text.dart';
+import 'package:poster_maker/features/background_remover/screens/background_remover_screen.dart';
 import 'package:poster_maker/features/poster/providers/poster_provider.dart';
 import '../models/user_profile.dart';
 
@@ -391,7 +392,35 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       style: GoogleFonts.poppins(fontSize: 12),
                     ),
                   ),
-                  if (provider.profile.profileImagePath != null)
+                  if (provider.profile.profileImagePath != null) ...[
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final file = File(provider.profile.profileImagePath!);
+                        if (file.existsSync()) {
+                          final cutout = await Navigator.of(context).push<File>(
+                            MaterialPageRoute(
+                              builder: (_) => BackgroundRemoverScreen(
+                                initialImageFile: file,
+                              ),
+                            ),
+                          );
+                          if (cutout != null) {
+                            final updated = provider.profile
+                                .copyWith(profileImagePath: cutout.path);
+                            await provider.updateProfile(updated);
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.auto_fix_high, size: 14),
+                      label: Text(
+                        'BG हटाएं',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
                     TextButton(
                       onPressed: () async {
                         await provider.clearProfileImage();
@@ -404,6 +433,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
             ),

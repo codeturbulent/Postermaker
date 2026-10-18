@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:poster_maker/features/image_search/models/image_search_result.dart';
+import 'package:poster_maker/features/poster/models/canvas_element.dart';
 import 'package:poster_maker/models/poster_template.dart';
 import 'package:poster_maker/models/user_profile.dart';
 import 'package:poster_maker/providers/poster_provider.dart';
@@ -64,6 +67,77 @@ void main() {
     });
   });
 
+  group('CanvasElement Model & Interactive Layer Tests', () {
+    test('Serializes to JSON and deserializes correctly', () {
+      const element = CanvasElement(
+        id: 'text_101',
+        type: CanvasElementType.text,
+        text: 'दीपावली की हार्दिक बधाई',
+        dx: 0.5,
+        dy: 0.35,
+        scale: 1.2,
+        fontFamily: 'Rozha One',
+        fontSize: 28.0,
+        textColor: Color(0xFFFFD54F),
+        strokeColor: Color(0xFF212121),
+        strokeWidth: 4.0,
+      );
+
+      final json = element.toJson();
+      final restored = CanvasElement.fromJson(json);
+
+      expect(restored.id, equals('text_101'));
+      expect(restored.type, equals(CanvasElementType.text));
+      expect(restored.text, equals('दीपावली की हार्दिक बधाई'));
+      expect(restored.dx, equals(0.5));
+      expect(restored.dy, equals(0.35));
+      expect(restored.scale, equals(1.2));
+      expect(restored.fontFamily, equals('Rozha One'));
+    });
+
+    test('copyWith modifies attributes properly', () {
+      const element = CanvasElement(
+        id: 'sticker_1',
+        type: CanvasElementType.sticker,
+        stickerEmoji: '🪔',
+        dx: 0.2,
+        dy: 0.2,
+      );
+
+      final updated = element.copyWith(
+        dx: 0.7,
+        dy: 0.8,
+        scale: 1.5,
+      );
+
+      expect(updated.id, equals('sticker_1'));
+      expect(updated.dx, equals(0.7));
+      expect(updated.dy, equals(0.8));
+      expect(updated.scale, equals(1.5));
+      expect(updated.stickerEmoji, equals('🪔'));
+    });
+  });
+
+  group('ImageSearchResult Model Tests', () {
+    test('Parses search result JSON accurately', () {
+      final json = {
+        'id': 'pix_12345',
+        'title': 'Diwali Lights Festival',
+        'thumbnailUrl': 'https://example.com/thumb.jpg',
+        'fullUrl': 'https://example.com/full.jpg',
+        'source': 'Pixabay',
+        'category': 'Festival',
+        'isTransparentSticker': true,
+      };
+
+      final result = ImageSearchResult.fromJson(json);
+      expect(result.id, equals('pix_12345'));
+      expect(result.title, equals('Diwali Lights Festival'));
+      expect(result.source, equals('Pixabay'));
+      expect(result.isTransparentSticker, isTrue);
+    });
+  });
+
   group('PosterProvider State & Viral Features Tests', () {
     test('Initializes with default template, aspect ratio, and profiles', () {
       final provider = PosterProvider();
@@ -73,6 +147,66 @@ void main() {
       expect(provider.filteredTemplates.length, equals(5));
       expect(provider.allProfiles.isNotEmpty, isTrue);
       expect(provider.currentAspectRatio, equals(provider.selectedTemplate.aspectRatio));
+      expect(provider.themeMode, equals(ThemeMode.system));
+      expect(provider.canvasElements.isEmpty, isTrue);
+    });
+
+    test('ThemeMode switches correctly between light and dark', () async {
+      final provider = PosterProvider();
+
+      await provider.setThemeMode(ThemeMode.dark);
+      expect(provider.themeMode, equals(ThemeMode.dark));
+
+      await provider.setThemeMode(ThemeMode.light);
+      expect(provider.themeMode, equals(ThemeMode.light));
+
+      await provider.toggleThemeMode();
+      expect(provider.themeMode, equals(ThemeMode.dark));
+    });
+
+    test('Canvas elements manipulation (add, select, update, reorder, delete)', () {
+      final provider = PosterProvider();
+
+      const elem1 = CanvasElement(id: 'elem_1', type: CanvasElementType.text, text: 'Text 1');
+      const elem2 = CanvasElement(id: 'elem_2', type: CanvasElementType.sticker, stickerEmoji: '🪔');
+
+      // Add
+      provider.addElement(elem1);
+      provider.addElement(elem2);
+      expect(provider.canvasElements.length, equals(2));
+      expect(provider.selectedElementId, equals('elem_2'));
+
+      // Update
+      provider.updateElement(elem1.copyWith(text: 'Updated Text 1'));
+      expect(provider.canvasElements.first.text, equals('Updated Text 1'));
+
+      // Select
+      provider.selectElement('elem_1');
+      expect(provider.selectedElement?.text, equals('Updated Text 1'));
+
+      // Duplicate
+      provider.duplicateElement('elem_1');
+      expect(provider.canvasElements.length, equals(3));
+
+      // Remove
+      provider.removeElement('elem_2');
+      expect(provider.canvasElements.length, equals(2));
+
+      // Clear all
+      provider.clearAllElements();
+      expect(provider.canvasElements.isEmpty, isTrue);
+      expect(provider.selectedElementId, isNull);
+    });
+
+    test('Custom background url and reset works', () {
+      final provider = PosterProvider();
+
+      expect(provider.customBackgroundUrl, isNull);
+      provider.setCustomBackground(url: 'https://images.unsplash.com/sample.jpg');
+      expect(provider.customBackgroundUrl, equals('https://images.unsplash.com/sample.jpg'));
+
+      provider.clearCustomBackground();
+      expect(provider.customBackgroundUrl, isNull);
     });
 
     test('Aspect ratio switcher (1:1, 4:5, 9:16 Status) updates correctly', () {

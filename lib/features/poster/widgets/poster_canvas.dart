@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:poster_maker/features/poster/models/canvas_element.dart';
 import 'package:poster_maker/features/poster/models/poster_template.dart';
 import 'package:poster_maker/features/profile/models/user_profile.dart';
 import 'package:poster_maker/core/widgets/stroked_text.dart';
@@ -8,8 +9,8 @@ import 'package:poster_maker/core/widgets/stroked_text.dart';
 /// The central visual compositor widget for the poster maker application.
 ///
 /// Encapsulated inside an [AspectRatio] and [LayoutBuilder] so that all visual elements,
-/// font sizes, ribbons, and photo frames scale proportionally and identically across
-/// preview devices and high-definition raster exports (1:1, 4:5, and 9:16 WhatsApp Status).
+/// font sizes, ribbons, photo frames, and movable layers scale proportionally and identically
+/// across preview devices and high-definition raster exports (1:1, 4:5, and 9:16 WhatsApp Status).
 class PosterCanvas extends StatelessWidget {
   final GlobalKey repaintKey;
   final PosterTemplate template;
@@ -20,6 +21,20 @@ class PosterCanvas extends StatelessWidget {
   final double aspectRatio;
   final bool showTopLeadersStrip;
   final String? badgeIcon;
+
+  // Custom Background and Interactive Draggable Layers
+  final String? customBackgroundUrl;
+  final String? customBackgroundImagePath;
+  final List<CanvasElement> canvasElements;
+  final String? selectedElementId;
+  final Function(String id)? onElementTap;
+  final Function(String id, double dx, double dy)? onElementMove;
+  final Function(String id, double newScale)? onElementScale;
+  final Function(String id)? onElementDelete;
+  final Function(String id)? onElementDuplicate;
+  final Function(CanvasElement element)? onElementEdit;
+  final VoidCallback? onCanvasTap;
+  final bool isExporting;
 
   const PosterCanvas({
     super.key,
@@ -32,6 +47,18 @@ class PosterCanvas extends StatelessWidget {
     this.aspectRatio = 0.8,
     this.showTopLeadersStrip = true,
     this.badgeIcon = '🪔',
+    this.customBackgroundUrl,
+    this.customBackgroundImagePath,
+    this.canvasElements = const [],
+    this.selectedElementId,
+    this.onElementTap,
+    this.onElementMove,
+    this.onElementScale,
+    this.onElementDelete,
+    this.onElementDuplicate,
+    this.onElementEdit,
+    this.onCanvasTap,
+    this.isExporting = false,
   });
 
   @override
@@ -59,23 +86,29 @@ class PosterCanvas extends StatelessWidget {
                   // LAYER 1: BASE BACKGROUND + GRADIENT VIGNETTE
                   // -----------------------------------------------------------
                   Positioned.fill(
-                    child: _buildBackground(w, h),
+                    child: GestureDetector(
+                      onTap: onCanvasTap,
+                      behavior: HitTestBehavior.opaque,
+                      child: _buildBackground(w, h),
+                    ),
                   ),
 
                   // Dark bottom-to-top vignette to ensure high legibility of footer
                   Positioned.fill(
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 0.45, 0.75, 1.0],
-                          colors: [
-                            Colors.transparent,
-                            Color(0x22000000),
-                            Color(0x99000000),
-                            Color(0xE6000000),
-                          ],
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: [0.0, 0.45, 0.75, 1.0],
+                            colors: [
+                              Colors.transparent,
+                              Color(0x22000000),
+                              Color(0x99000000),
+                              Color(0xE6000000),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -120,6 +153,11 @@ class PosterCanvas extends StatelessWidget {
                   ),
 
                   // -----------------------------------------------------------
+                  // LAYER 3.5: INTERACTIVE MOVABLE & DRAGGABLE CANVAS LAYERS
+                  // -----------------------------------------------------------
+                  ..._buildCanvasElements(w, h),
+
+                  // -----------------------------------------------------------
                   // LAYER 4: USER CUTOUT / PHOTO FRAME LAYER (with soft fade)
                   // -----------------------------------------------------------
                   _buildUserPhotoFrame(w, h, userFrameBottom),
@@ -142,8 +180,26 @@ class PosterCanvas extends StatelessWidget {
     );
   }
 
-  /// Builds the multi-stage background with network image and resilient fallback gradient.
+  /// Builds the multi-stage background supporting custom search images and resilient fallback.
   Widget _buildBackground(double w, double h) {
+    if (customBackgroundImagePath != null &&
+        customBackgroundImagePath!.isNotEmpty) {
+      final file = File(customBackgroundImagePath!);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: w,
+          height: h,
+        );
+      }
+    }
+
+    final effectiveUrl = (customBackgroundUrl != null &&
+            customBackgroundUrl!.isNotEmpty)
+        ? customBackgroundUrl!
+        : template.assetOrNetworkUrl;
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -153,7 +209,7 @@ class PosterCanvas extends StatelessWidget {
         ),
       ),
       child: Image.network(
-        template.assetOrNetworkUrl,
+        effectiveUrl,
         fit: BoxFit.cover,
         width: w,
         height: h,
@@ -171,7 +227,6 @@ class PosterCanvas extends StatelessWidget {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          // Graceful decorative pattern fallback when network is unavailable
           return CustomPaint(
             painter: _DecorativePosterBackdropPainter(
               primaryColor: template.primaryColor,
@@ -180,6 +235,175 @@ class PosterCanvas extends StatelessWidget {
             size: Size(w, h),
           );
         },
+      ),
+    );
+  }
+
+  /// Renders all draggable, resizable elements on the canvas
+  List<Widget> _buildCanvasElements(double w, double h) {
+    if (canvasElements.isEmpty) return const [];
+
+    return canvasElements.map((elem) {
+      final isSelected = elem.id == selectedElementId && !isExporting;
+      final posX = (elem.dx * w);
+      final posY = (elem.dy * h);
+
+      return Positioned(
+        left: posX,
+        top: posY,
+        child: FractionalTranslation(
+          translation: const Offset(-0.5, -0.5),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onElementTap?.call(elem.id),
+            onPanUpdate: isExporting
+                ? null
+                : (details) {
+                    final newDx =
+                        (elem.dx + details.delta.dx / w).clamp(0.05, 0.95);
+                    final newDy =
+                        (elem.dy + details.delta.dy / h).clamp(0.05, 0.95);
+                    onElementMove?.call(elem.id, newDx, newDy);
+                  },
+            child: _buildElementContent(elem, w, h, isSelected),
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  Widget _buildElementContent(
+      CanvasElement elem, double w, double h, bool isSelected) {
+    Widget coreWidget;
+
+    if (elem.type == CanvasElementType.text) {
+      coreWidget = StrokedText(
+        elem.text.isNotEmpty ? elem.text : 'टेक्स्ट',
+        fontSize: elem.fontSize * elem.scale,
+        fillColor: elem.textColor,
+        strokeColor: elem.strokeColor,
+        strokeWidth: elem.strokeWidth * elem.scale,
+        fontFamily: elem.fontFamily,
+        fontWeight: elem.isBold ? FontWeight.w900 : FontWeight.w500,
+        textAlign: elem.textAlign,
+        letterSpacing: elem.letterSpacing,
+      );
+    } else if (elem.type == CanvasElementType.sticker &&
+        elem.stickerEmoji != null) {
+      coreWidget = Text(
+        elem.stickerEmoji!,
+        style: TextStyle(fontSize: 44 * elem.scale),
+      );
+    } else if (elem.imagePath != null && elem.imagePath!.isNotEmpty) {
+      final size = (w * elem.width * elem.scale).clamp(30.0, w * 0.9);
+      final isLocal = File(elem.imagePath!).existsSync();
+
+      coreWidget = SizedBox(
+        width: size,
+        height: size,
+        child: isLocal
+            ? Image.file(File(elem.imagePath!), fit: BoxFit.contain)
+            : Image.network(
+                elem.imagePath!,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.broken_image, size: 32),
+              ),
+      );
+    } else {
+      coreWidget = const SizedBox.shrink();
+    }
+
+    if (!isSelected) {
+      return coreWidget;
+    }
+
+    // Active selection bounding box with control buttons
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: const Color(0xFFFFB300),
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        color: const Color(0x15FFB300),
+      ),
+      padding: const EdgeInsets.all(6),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          coreWidget,
+          // Delete button (Top Right)
+          Positioned(
+            top: -12,
+            right: -12,
+            child: InkWell(
+              onTap: () => onElementDelete?.call(elem.id),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, size: 12, color: Colors.white),
+              ),
+            ),
+          ),
+          // Duplicate button (Top Left)
+          Positioned(
+            top: -12,
+            left: -12,
+            child: InkWell(
+              onTap: () => onElementDuplicate?.call(elem.id),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1976D2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.copy, size: 12, color: Colors.white),
+              ),
+            ),
+          ),
+          // Edit button for text (Bottom Left)
+          if (elem.type == CanvasElementType.text)
+            Positioned(
+              bottom: -12,
+              left: -12,
+              child: InkWell(
+                onTap: () => onElementEdit?.call(elem),
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF388E3C),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.edit, size: 12, color: Colors.white),
+                ),
+              ),
+            ),
+          // Resize handle (Bottom Right)
+          Positioned(
+            bottom: -12,
+            right: -12,
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                final scaleDelta = (details.delta.dx + details.delta.dy) * 0.01;
+                final newScale = (elem.scale + scaleDelta).clamp(0.4, 3.5);
+                onElementScale?.call(elem.id, newScale);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFF8F00),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.open_in_full_rounded,
+                    size: 12, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

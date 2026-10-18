@@ -46,5 +46,18 @@ captures/
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
 
+# Signing & Keystore Secrets (Never commit)
+*.jks
+*.keystore
+key.properties
+**/android/key.properties
+**/android/app/key.properties
+
+# Environment Variables & Secret Configs
+*.env
+*.env.*
+config/*.json
+!config/env.example.json
+
 # Exceptions to above rules.
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages

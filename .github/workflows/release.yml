@@ -59,17 +59,6 @@ jobs:
 
       - name: Getting APK Name
         env:
-          COMMIT_MSG: ${{ github.event.head_commit.message || github.event.workflow_run.head_commit.message || 'manual_build' }}
-        run: |
-          # Strip non-alphanumeric chars, collapse multiple underscores, and strip leading/trailing underscores
-          CLEAN_MSG=$(echo "$COMMIT_MSG" \vert{} head -n 1 \vert{} sed 's/[^a-zA-Z0-9]/_/g' \vert{} sed 's/__*/_/g' \vert{} sed 's/^_//;s/_$//' | cut -c1-25)
-          if [ -z "$CLEAN_MSG" ]; then
-            CLEAN_MSG="build"
-          fi
-          APK_NAME="${CLEAN_MSG}_$(TZ="Asia/Kolkata" date +"%Y-%m-%d_%H-%M-%S")"
-          echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
-      - name: Getting APK Name
-        env:
           COMMIT_MSG: ${{ github.event.head_commit.message || 'manual_build' }}
         run: |
           # 1. Take only the first line and strip carriage returns

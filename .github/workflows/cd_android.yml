@@ -62,11 +62,11 @@ jobs:
             echo "Decoding production keystore from secrets..."
             echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
             cat <<EOF > android/key.properties
-          storePassword=$KEYSTORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=upload-keystore.jks
-          EOF
+storePassword=$KEYSTORE_PASSWORD
+keyPassword=$KEY_PASSWORD
+keyAlias=$KEY_ALIAS
+storeFile=upload-keystore.jks
+EOF
             echo "Production keystore and key.properties configured."
           else
             echo "No KEYSTORE_BASE64 secret found; build will use debug signing fallback."
@@ -99,7 +99,9 @@ jobs:
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
 
       - name: Install Dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          mkdir -p build/app/outputs/symbols
 
       - name: Build Android App Bundle (AAB for Play Store)
         run: |

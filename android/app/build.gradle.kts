@@ -37,25 +37,32 @@ android {
     }
 
     signingConfigs {
-        if (hasKeystore) {
-            create("release") {
+        create("release") {
+            if (hasKeystore) {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile", "app/upload-keystore.jks"))
+                val storeFileProp = keystoreProperties.getProperty("storeFile", "app/upload-keystore.jks")
+                storeFile = if (file(storeFileProp).exists()) {
+                    file(storeFileProp)
+                } else {
+                    rootProject.file(storeFileProp)
+                }
                 storePassword = keystoreProperties.getProperty("storePassword")
+            } else {
+                val debugSigning = getByName("debug")
+                keyAlias = debugSigning.keyAlias
+                keyPassword = debugSigning.keyPassword
+                storeFile = debugSigning.storeFile
+                storePassword = debugSigning.storePassword
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (hasKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
-            isMinifyEnabled = true
-            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

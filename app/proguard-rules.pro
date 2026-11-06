@@ -18,6 +18,9 @@
 # Coil 3 Image Pipeline
 -keep class coil3.** { *; }
 -dontwarn coil3.**
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
+-dontwarn java.lang.invoke.**
 
 # Google Play In-App Billing
 -keep class com.android.billingclient.api.** { *; }

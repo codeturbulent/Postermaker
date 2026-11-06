@@ -14,7 +14,7 @@ import com.grampradhan.posterstudio.core.data.model.PosterTemplate
         PosterDraft::class
     ],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 @TypeConverters(
     ListStringConverter::class,

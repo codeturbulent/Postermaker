@@ -3,11 +3,6 @@ package com.grampradhan.posterstudio.core.data.model
 import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import com.grampradhan.posterstudio.core.data.db.ImageSlotConverter
-import com.grampradhan.posterstudio.core.data.db.LayerSnapshotConverter
-import com.grampradhan.posterstudio.core.data.db.ListStringConverter
-import com.grampradhan.posterstudio.core.data.db.TextLayerConverter
 import kotlinx.parcelize.Parcelize
 
 /**
@@ -25,7 +20,6 @@ data class CandidateProfile(
     val slogan: String,
     val candidatePhotoPath: String?,     // cutout PNG path
     val partySymbolPath: String?,
-    @TypeConverters(ListStringConverter::class)
     val leaderPhotos: List<String> = emptyList(),
     val primaryColorHex: String = "#FF6A1B",
     val phoneNumber: String = "",
@@ -43,9 +37,7 @@ data class PosterTemplate(
     val aspectRatio: AspectRatio,
     val backgroundUrl: String,           // asset:// or file://
     val thumbUrl: String,
-    @TypeConverters(TextLayerConverter::class)
     val predefinedTextLayers: List<TextLayerConfig>,
-    @TypeConverters(ImageSlotConverter::class)
     val slotConfigs: List<ImageSlotConfig>,
     val isPro: Boolean = false
 ) : Parcelable
@@ -58,7 +50,6 @@ data class PosterTemplate(
 data class PosterDraft(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val templateId: String,
-    @TypeConverters(LayerSnapshotConverter::class)
     val layers: List<LayerSnapshot>,     // serialized editor state
     val previewPath: String,
     val savedAt: Long = System.currentTimeMillis()

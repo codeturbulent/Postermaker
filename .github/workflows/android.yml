@@ -1,4 +1,4 @@
-name: Android CI/CD
+name: Android CI/CD & Production Release
 
 on:
   push:
@@ -11,11 +11,14 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
-  build-and-test:
-    name: Build, Test & Package Android APK
+  build-test-and-release:
+    name: Build, Test & Release APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -45,25 +48,68 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Assemble Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Assemble Debug & Release APKs
+        run: |
+          ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace
 
-      - name: Assemble Release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+      - name: Resolve Release Artifacts
+        if: github.ref == 'refs/heads/main'
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message || 'release_build' }}
+        run: |
+          FIRST_LINE=$(printf '%s' "$COMMIT_MSG" | head -n 1 | tr -d '\r')
+          CLEAN_MSG=$(printf '%s' "$FIRST_LINE" | tr -c 'a-zA-Z0-9' '_' | tr -s '_' | sed 's/^_//;s/_$//' | cut -c1-25)
+          CLEAN_MSG=$(printf '%s' "$CLEAN_MSG" | sed 's/_$//')
+          if [ -z "$CLEAN_MSG" ]; then
+            CLEAN_MSG="release"
+          fi
+          TIMESTAMP=$(TZ="Asia/Kolkata" date +"%Y-%m-%d_%H-%M-%S")
+          RELEASE_TAG="v-${CLEAN_MSG}_v${{ github.run_number }}_${TIMESTAMP}"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
 
-      - name: Upload Debug APK
+          mkdir -p release_artifacts
+          # Copy release APK
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            cp "app/build/outputs/apk/release/app-release.apk" "release_artifacts/GramPradhan-${RELEASE_TAG}.apk"
+          elif [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp "app/build/outputs/apk/release/app-release-unsigned.apk" "release_artifacts/GramPradhan-${RELEASE_TAG}.apk"
+          fi
+          # Also copy debug APK for quick testing
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp "app/build/outputs/apk/debug/app-debug.apk" "release_artifacts/GramPradhan-${RELEASE_TAG}-debug.apk"
+          fi
+
+          echo "Prepared release artifacts in release_artifacts/:"
+          ls -la release_artifacts/
+
+      - name: Upload Artifacts to Action Run
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: warn
+          name: poster-maker-apks
+          path: release_artifacts/*
+          if-no-files-found: ignore
 
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+      - name: Publish APK to GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
-          name: app-release-unsigned
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
-          if-no-files-found: warn
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: "Release ${{ env.RELEASE_TAG }}"
+          body: |
+            ## 🚀 GramPradhan Poster Studio — Automated Release
+
+            - **Release Tag**: `${{ env.RELEASE_TAG }}`
+            - **Build Number**: `${{ github.run_number }}`
+            - **Commit**: `${{ github.sha }}`
+            - **Branch**: `${{ github.ref_name }}`
+
+            ### 📦 Download Pre-built APKs
+            Download the pre-compiled native Android APK assets attached to this release.
+          files: release_artifacts/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Unit Test Reports
         if: always()

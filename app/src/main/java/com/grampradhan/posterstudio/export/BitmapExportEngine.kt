@@ -39,11 +39,18 @@ import kotlin.coroutines.coroutineContext
 import kotlin.math.max
 import kotlin.math.min
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
 /**
  * Production-ready export engine handling off-screen Compose tree rendering,
  * high-DPI flex banner print rendering, RAM-aware resolution capping, and compression.
  */
-class BitmapExportEngine(private val context: Context) {
+@Singleton
+class BitmapExportEngine @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
 
     companion object {
         private const val TAG = "BitmapExportEngine"

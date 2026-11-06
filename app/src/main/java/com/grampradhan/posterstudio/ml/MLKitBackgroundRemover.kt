@@ -24,7 +24,11 @@ import kotlin.math.min
  * Production-ready on-device background remover powered by Google ML Kit Selfie Segmentation.
  * Applies edge feathering (anti-aliasing) to eliminate jagged contours and preserves native subject resolution.
  */
-class MLKitBackgroundRemover {
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class MLKitBackgroundRemover @Inject constructor() {
 
     private val segmenterOptions = SelfieSegmenterOptions.Builder()
         .setDetectorMode(SelfieSegmenterOptions.SINGLE_IMAGE_MODE)

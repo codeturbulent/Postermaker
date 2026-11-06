@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ग्रामप्रधान पोस्टर स्टूडियो</string>
+    <string name="profile_title">ब्रांड किट और प्रोफ़ाइल</string>
+    <string name="candidate_name_label">प्रत्याशी का पूरा नाम</string>
+    <string name="candidate_name_hint">उदा. राम सिंह यादव</string>
+    <string name="candidate_name_error">कृपया प्रत्याशी का नाम दर्ज करें</string>
+    <string name="designation_label">पद / पदनाम</string>
+    <string name="gram_panchayat_label">ग्राम पंचायत</string>
+    <string name="gram_panchayat_hint">उदा. रामपुर</string>
+    <string name="gram_panchayat_error">कृपया ग्राम पंचायत का नाम दर्ज करें</string>
+    <string name="vikas_khand_label">विकास खंड (ब्लॉक)</string>
+    <string name="vikas_khand_hint">उदा. बक्शा</string>
+    <string name="district_label">जनपद (ज़िला)</string>
+    <string name="district_hint">उदा. जौनपुर</string>
+    <string name="slogan_label">चुनावी स्लोगन / नारा</string>
+    <string name="slogan_hint">उदा. सबका साथ, गाँव का संपूर्ण विकास</string>
+    <string name="phone_number_label">मोबाइल नंबर</string>
+    <string name="btn_save_profile">प्रोफ़ाइल सुरक्षित करें</string>
+    <string name="btn_remove_background">बैकग्राउंड हटाएं</string>
+    <string name="removing_background">बैकग्राउंड हटाया जा रहा है…</string>
+    <string name="btn_pick_photo">फ़ोटो चुनें</string>
+    <string name="party_symbol_title">चुनाव चिन्ह चुनें</string>
+    <string name="primary_color_title">पोस्टर का मुख्य रंग</string>
+
+    <string name="home_greeting">नमस्ते %1$s जी! आज कौन सा पोस्टर बनाएंगे?</string>
+    <string name="create_profile_cta">पहले अपनी प्रोफ़ाइल बनाएं</string>
+    <string name="category_all">सभी पोस्टर</string>
+    <string name="category_election">चुनावी प्रचार</string>
+    <string name="category_festival">त्योहार शुभकामनाएँ</string>
+    <string name="category_development">विकास कार्य</string>
+    <string name="category_birthday">जन्मदिन व बधाई</string>
+
+    <string name="editor_title">पोस्टर एडिटर</string>
+    <string name="btn_undo">पूर्ववत करें (Undo)</string>
+    <string name="btn_redo">फिर से करें (Redo)</string>
+    <string name="btn_export">एक्सपोर्ट करें</string>
+    <string name="btn_save_draft">ड्राफ्ट सेव करें</string>
+    <string name="layers_panel">लेयर्स</string>
+    <string name="typography_settings">हिन्दी फॉन्ट और स्टाइल</string>
+    <string name="font_size">फॉन्ट साइज़</string>
+    <string name="font_family">फॉन्ट शैली</string>
+    <string name="text_color">रंग</string>
+    <string name="stroke_width">स्ट्रोक (बॉर्डर)</string>
+    <string name="curved_arc">घुमावदार अक्षर (Curve)</string>
+
+    <string name="export_title">डाउनलोड व शेयर</string>
+    <string name="export_status_rendering">बैकग्राउंड रेंडर हो रहा है…</string>
+    <string name="export_status_saving">फ़ाइल सेव हो रही है…</string>
+    <string name="share_whatsapp">व्हाट्सएप पर शेयर करें</string>
+    <string name="share_generic">अन्य ऐप्स पर शेयर करें</string>
+</resources>

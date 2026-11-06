@@ -1,0 +1,186 @@
+mproved Prompt: GramPradhan Poster Studio — Native Android Build Specification
+
+## Role & Mission
+
+You are a **Principal Mobile Architect** with 12+ years of experience shipping consumer-grade Android apps for Bharat's Tier-2/Tier-3 market. You have deep expertise in Kotlin, Jetpack Compose, on-device ML, Room, and Play Billing — and you understand the constraints of low-end devices (2–4 GB RAM, Android 8.0+), spotty connectivity, and non-English-first users.
+
+**Your task:** Architect and deliver the complete, production-ready codebase for **"GramPradhan Poster Studio"** — a Hindi-first election & festival poster maker app for Gram Pradhan candidates, sitting Pradhans, BDC/Zila Panchayat members, and local party workers.
+
+**Product promise:** *A non-technical user must be able to generate a professional, print-ready flex banner in under 2 minutes on a ₹8,000 Android phone — offline.*
+
+---
+
+## Non-Negotiable Engineering Constraints
+
+Treat these as hard requirements, not suggestions. Call out violations explicitly if you must deviate.
+
+| Constraint | Requirement |
+|---|---|
+| **Offline-first** | All 5 core flows (profile setup, browse, edit, background removal, export) must work with airplane mode ON. No mandatory network calls. |
+| **APK size** | Release APK ≤ 45 MB. Use WebP backgrounds, subsetted Devanagari fonts, and on-demand asset packs for template bundles. |
+| **Cold start** | ≤ 2.5 seconds on a 3 GB RAM device. Defer DB init, font loading, and template decode off the main thread. |
+| **Low-end memory** | Handle `onTrimMemory` and `onLowMemory`. Never hold more than one full-res `Bitmap` in memory at a time; use `BitmapRegionDecoder` for large flex banners. |
+| **Locale** | App default locale = `hi-IN` with full Devanagari support. English fallback strings via `values-en/`. All user-facing strings in `strings.xml`, zero hardcoded text. |
+| **Accessibility** | Min touch target 48dp, TalkBack labels on all icon buttons, `contentDescription` in Hindi. Support 1.3× font scaling without layout break. |
+| **Permissions** | Request `READ_MEDIA_IMAGES` (API 33+) / `READ_EXTERNAL_STORAGE` (≤32) with rationale dialog. No `MANAGE_EXTERNAL_STORAGE`. |
+
+---
+
+## Tech Stack
+
+- **Language/UI:** Kotlin 2.0+, Jetpack Compose (Material 3), Compose Navigation, `WindowSizeClass` for tablet/foldable support.
+- **Architecture:** Clean Architecture (data / domain / presentation) + MVVM + UDF. One `ViewModel` per screen, exposing a single `UiState` sealed class via `StateFlow`. No `LiveData`.
+- **DI:** Hilt.
+- **Local DB:** Room 2.6+ with KSP, TypeConverters for `List<String>` and enums.
+- **ML:** Google ML Kit **Selfie Segmentation** (on-device, bundled model). No cloud calls, no Firebase ML.
+- **Image pipeline:** Coil 3 (SVG + GIF decoders), `androidx.exifinterface` for rotation correction, custom `BitmapPool` for editor reuse.
+- **Concurrency:** Coroutines + Flow. All bitmap ops on `Dispatchers.Default`; Room on `Dispatchers.IO`.
+- **Billing:** Google Play Billing v7+ (Freemium → Pro subscription). Verify purchases via backend-agnostic `PurchaseVerifier` interface (stub with local signature check for MVP).
+- **Analytics/Crash:** Pluggable `AnalyticsLogger` and `CrashReporter` interfaces (no-op default) so the vendor is swappable.
+- **Testing:** JUnit5, Turbine (Flow tests), Robolectric for Room, `compose-ui-test` for editor gestures. Target 70% coverage on domain layer.
+
+---
+
+## Core Data Models (Room)
+
+Define the following with full Room annotations, TypeConverters, and domain-model mappers. Use `@Parcelize` where needed for navigation.
+
+```kotlin
+@Entity(tableName = "candidate_profiles")
+data class CandidateProfile(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+        val candidateName: String,           // "राम सिंह यादव"
+	    val designation: String,             // "भावी ग्राम प्रधान प्रत्याशी"
+	        val gramPanchayat: String,
+		    val vikasKhandBlock: String,
+		        val district: String,
+			    val slogan: String,
+			        val candidatePhotoPath: String?,     // cutout PNG path
+				    val partySymbolPath: String?,
+				        @TypeConverters(ListStringConverter::class)
+					    val leaderPhotos: List<String> = emptyList(),
+					        val primaryColorHex: String = "#FF6A1B",
+						    val phoneNumber: String = "",
+						        val updatedAt: Long = System.currentTimeMillis()
+							)
+
+							@Entity(tableName = "poster_templates")
+							data class PosterTemplate(
+							    @PrimaryKey val id: String,
+							        val category: TemplateCategory,
+								    val aspectRatio: AspectRatio,
+								        val backgroundUrl: String,           // asset:// or file://
+									    val thumbUrl: String,
+									        @TypeConverters(TextLayerConverter::class)
+										    val predefinedTextLayers: List<TextLayerConfig>,
+										        @TypeConverters(ImageSlotConverter::class)
+											    val slotConfigs: List<ImageSlotConfig>,
+											        val isPro: Boolean = false
+												)
+
+												@Entity(tableName = "poster_drafts")
+												data class PosterDraft(
+												    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+												        val templateId: String,
+													    @TypeConverters(LayerSnapshotConverter::class)
+													        val layers: List<LayerSnapshot>,     // serialized editor state
+														    val previewPath: String,
+														        val savedAt: Long
+															)
+															```
+
+															Also define: `TextLayerConfig`, `ImageSlotConfig` (with `SlotType` enum: `CANDIDATE_PHOTO`, `PARTY_SYMBOL`, `LEADER_PORTRAIT`, `VILLAGE_TEXT`), `LayerSnapshot`, `TemplateCategory`, `AspectRatio`.
+
+															---
+
+															## Screens & UX Spec
+
+															### Screen 1 — Brand Kit Setup (`ProfileScreen`)
+															- Single scrollable `LazyColumn` with sections; a sticky bottom `Save` FAB.
+															- **Designation field:** `ExposedDropdownMenuBox` with 12 presets (ग्राम प्रधान, भावी प्रत्याशी, BDC सदस्य, जिला पंचायत सदस्य, etc.) + "अन्य (लिखें)" custom entry.
+															- **Photo picker:** `PhotoPicker` → crop → **"बैकग्राउंड हटाएं"** toggle → runs `MLKitBackgroundRemover` → shows before/after with a spinner on a 150dp preview.
+															- **Party symbol picker:** Grid of 20 bundled vector symbols (ट्रैक्टर, घड़ी, कार, सूरजमुखी, हैंडपंप, हाथी, etc.) + "अपलोड करें" custom path.
+															- **Color picker:** Material 3 palette + custom hex; live-preview swatch updates the poster thumbnail below.
+															- **Validation:** Inline field errors in Hindi. `Save` disabled until `candidateName` and `gramPanchayat` are non-blank.
+															- **Auto-bind:** On save, emit a `ProfileSaved` event; downstream screens observe via `profileRepository.observeActiveProfile(): Flow<CandidateProfile?>`.
+
+															### Screen 2 — Dashboard (`HomeScreen`)
+															- **Greeting banner** (Material 3 `ElevatedCard`): `"नमस्ते ${profile.candidateName} जी! आज कौन सा पोस्टर बनाएंगे?"`
+															- **Category chips** (horizontal scroll): All, Election Campaign, Festival Greetings, विकास कार्य, Birthday/Congratulations.
+															- **Auto-filled grid:** `LazyVerticalGrid` (2 columns phone, 3 tablet). Each card renders a **live thumbnail** — a `@Composable` mini-canvas that overlays the user's brand kit (name, photo cutout, symbol) onto the template's `slotConfigs`. Debounce thumbnail regeneration; cache to disk with Coil.
+															- Empty-state card if no profile: `"पहले अपनी प्रोफ़ाइल बनाएं"` → CTA to ProfileScreen.
+
+															### Screen 3 — Editor (`EditorScreen`)
+															- **Canvas:** `Box` with `graphicsLayer` per layer; gestures via `detectTransformGestures` (pan + pinch-zoom + rotation) on the active layer only. Support **double-tap to edit text inline** via a `BasicTextField` overlay.
+															- **Rendering model:** Each layer is a sealed class (`TextLayer`, `ImageLayer`, `StickerLayer`, `BackgroundLayer`) with `zIndex`, `transform` (`Matrix`), `isLocked`.
+															- **Hindi typography bar (bottom sheet, expandable):**
+															  - Font picker: 8 Devanagari Google Fonts (**Rozha One, Baloo Bhai 2, Kalam, Noto Sans Devanagari, Poppins, Mukta, Tiro Devanagari Hindi, Yatra One**) — preloaded as subsetted `.ttf` via `FontFamily(File)`.
+															    - Controls: fill color, stroke width (0–8dp) + color, drop-shadow toggle, curved-text arc slider (−180° to +180°).
+															      - Line-height and letter-spacing sliders.
+															      - **Layer panel (right rail or bottom sheet tab):** reorderable `LazyColumn` — Bring Forward / Send Backward / Lock / Flip H / Delete. Tap to select; long-press for context menu.
+															      - **Toolbar:** Undo / Redo (state stack of `List<Layer>` snapshots, max 30), Save Draft, Export.
+															      - **Performance:** Throttle gesture state updates to 60 fps; avoid re-composing the background layer during transforms by using `Modifier.drawWithContent` + `Canvas` for the whole scene and only recomposing on layer change.
+
+															      ### Screen 4 — Export & Share (`ExportScreen`)
+															      - **Format selector:** Segmented buttons — WhatsApp Status (1080×1920, JPEG q90), Square Post (1080×1080), Flex Banner Print (e.g., 3600×1800 @ 300 DPI, PNG).
+															      - **DPI note:** For print, render off-screen at the target pixel dimensions using the utility in §4.
+															      - **Progress:** Determinate `LinearProgressIndicator` with stage text (`"बैकग्राउंड रेंडर हो रहा है…"`, `"फ़ाइल सेव हो रही है…"`).
+															      - **Watermark:** For free tier, composite a semi-transparent "GramPradhan Poster Studio" logo at bottom-right; skip entirely for Pro.
+															      - **Share:** `ShareCompat.IntentBuilder` with `ACTION_SEND` + `FileProvider` URI. Explicit WhatsApp / Facebook / Telegram / generic share buttons. Handle `ActivityNotFoundException` gracefully.
+
+															      ---
+
+															      ## Production Utilities to Deliver
+
+															      Provide **complete, compiling Kotlin code** (no pseudo-code, no `TODO()`) for:
+
+															      ### 1. `MLKitBackgroundRemover.kt`
+															      - Suspend function `removeBackground(bitmap: Bitmap, confidenceThreshold: Float = 0.7f): Bitmap`
+															      - Uses `Segmentation.getClient(SelfieSegmenterOptions.Builder().setDetectorMode(SINGLE_IMAGE).build())`
+															      - Applies the mask **with anti-aliasing** (feather the mask edges via a Gaussian blur of 1–2px before compositing) to avoid jagged cutout edges.
+															      - Returns an ARGB_8888 `Bitmap` with transparent background. Preserves subject at native resolution.
+															      - Handles: input downscaling to ML Kit's max input size, EXIF rotation, and `OutOfMemoryError` on low-end devices (fallback: downscale and retry once).
+															      - Runs on `Dispatchers.Default`; cancelable via `coroutineContext.ensureActive()`.
+
+															      ### 2. `BitmapExportEngine.kt`
+															      - Off-screen render a Compose UI tree at arbitrary pixel dimensions using `ComposeView` + `View.draw(Canvas)` into a `Bitmap.createBitmap(width, height, ARGB_8888)`.
+															      - Provide two entry points: `exportFromCompose(content: @Composable () -> Unit, widthPx: Int, heightPx: Int): Bitmap` and `exportFromLayerModel(layers: List<Layer>, widthPx: Int, heightPx: Int): Bitmap` (canvas-based, for print).
+															      - Compute 300 DPI → pixel mapping for flex banner sizes (e.g., `36in × 24in → 10800 × 7200 px` is too large — **cap at 6000px on the long edge on devices with < 6 GB RAM** and log a warning).
+															      - Write to cache dir with a unique filename; return `File` + a `content://` URI via `FileProvider`.
+															      - Include a `BitmapCompressor` that does JPEG quality loop (target ≤ 2 MB for WhatsApp) or lossless PNG for print.
+
+															      ### 3. `DevanagariTextFormatter.kt`
+															      - `formatHonorific(name: String, prefix: HonorificPrefix): String` — handles श्री / श्रीमती / सौ. / कु. / डॉ. and prevents double-prefixing.
+															      - `formatDesignation(designation: String, panchayat: String, block: String, district: String): List<String>` — returns display lines in the standard Hindi poster hierarchy: `designation` → `gramPanchayat` → `vikasKhandBlock` → `district`.
+															      - `smartWrapHindi(text: String, maxCharsPerLine: Int): List<String>` — respects Devanagari **matra clusters** (do not break between a consonant and its halant/matra; use `BreakIterator.getLineInstance(Locale("hi","IN"))`).
+															      - `toDevanagariNumerals(input: String): String` — for phone numbers and years.
+
+															      ---
+
+															      ## Definition of Done
+
+															      Your response must include **all** of the following, in order:
+
+															      1. **Project structure tree** (module: `app` + optional `:core:ui`, `:core:data`, `:feature:editor` — justify your split).
+															      2. **`app/build.gradle.kts`** with version catalog (`libs.versions.toml` snippet) — pinned versions, ProGuard rules noted.
+															      3. **Room schema** — all entities, DAOs (`CandidateProfileDao`, `TemplateDao`, `DraftDao`) with suspend functions and `Flow` returns, TypeConverters, and a `DatabaseModule` Hilt provider.
+															      4. **`MLKitBackgroundRemover.kt`** — full implementation.
+															      5. **`BitmapExportEngine.kt`** — full implementation.
+															      6. **`EditorScreen.kt`** — full Compose UI with gesture handling, layer model, and typography bar. Break into private composables; do not inline 800 lines.
+															      7. **`DevanagariTextFormatter.kt`** — full implementation.
+															      8. **`ProfileViewModel.kt`** + `ProfileUiState` as a representative MVVM + UDF sample.
+															      9. **Testing plan** — 3 representative unit tests (formatter, DAO, ViewModel) and 1 Compose UI test for the editor gesture.
+															      10. **Risk register** — top 5 technical risks (e.g., ML Kit mask quality on dark skin tones, font licensing, low-end OOM) with mitigation strategies.
+
+															      ---
+
+															      ## Output Rules
+
+															      - **Language:** Kotlin only. Comments in English; user-facing strings in Hindi (`strings.xml`).
+															      - **No placeholders:** No `// TODO`, no `...`, no `/* rest of implementation */`. If a file is too long, split it across named files and say so explicitly.
+															      - **Explain decisions briefly** (1–3 lines) above each code block. Do not pad with marketing prose.
+															      - **Flag any constraint you cannot meet** in a "Deviations" section at the end, with the reason and proposed alternative.
+															      - **Start with the project tree, then proceed file-by-file.** Close with the risk register and deviations.
+
+															      If any requirement is ambiguous, state your assumption in one line and proceed — do not ask clarifying questions before delivering.	
+

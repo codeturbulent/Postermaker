@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GramPradhan Poster Studio</string>
+    <string name="profile_title">Brand Kit &amp; Profile</string>
+    <string name="candidate_name_label">Candidate Full Name</string>
+    <string name="candidate_name_hint">e.g. Ram Singh Yadav</string>
+    <string name="candidate_name_error">Please enter candidate name</string>
+    <string name="designation_label">Designation / Role</string>
+    <string name="gram_panchayat_label">Gram Panchayat</string>
+    <string name="gram_panchayat_hint">e.g. Rampur</string>
+    <string name="gram_panchayat_error">Please enter gram panchayat</string>
+    <string name="vikas_khand_label">Development Block (Vikas Khand)</string>
+    <string name="vikas_khand_hint">e.g. Baksha</string>
+    <string name="district_label">District</string>
+    <string name="district_hint">e.g. Jaunpur</string>
+    <string name="slogan_label">Campaign Slogan</string>
+    <string name="slogan_hint">e.g. Sabka Saath, Village Progress</string>
+    <string name="phone_number_label">Mobile Number</string>
+    <string name="btn_save_profile">Save Profile</string>
+    <string name="btn_remove_background">Remove Background</string>
+    <string name="removing_background">Removing background…</string>
+    <string name="btn_pick_photo">Select Photo</string>
+    <string name="party_symbol_title">Select Election Symbol</string>
+    <string name="primary_color_title">Poster Primary Color</string>
+
+    <string name="home_greeting">Namaste %1$s ji! Which poster are we designing today?</string>
+    <string name="create_profile_cta">Create your profile first</string>
+    <string name="category_all">All Posters</string>
+    <string name="category_election">Election Campaign</string>
+    <string name="category_festival">Festival Greetings</string>
+    <string name="category_development">Development Work</string>
+    <string name="category_birthday">Birthday &amp; Wishes</string>
+
+    <string name="editor_title">Poster Editor</string>
+    <string name="btn_undo">Undo</string>
+    <string name="btn_redo">Redo</string>
+    <string name="btn_export">Export</string>
+    <string name="btn_save_draft">Save Draft</string>
+    <string name="layers_panel">Layers</string>
+    <string name="typography_settings">Hindi Font &amp; Style</string>
+    <string name="font_size">Font Size</string>
+    <string name="font_family">Font Style</string>
+    <string name="text_color">Color</string>
+    <string name="stroke_width">Stroke Border</string>
+    <string name="curved_arc">Curved Text</string>
+
+    <string name="export_title">Download &amp; Share</string>
+    <string name="export_status_rendering">Rendering background…</string>
+    <string name="export_status_saving">Saving file…</string>
+    <string name="share_whatsapp">Share to WhatsApp</string>
+    <string name="share_generic">Share via other apps</string>
+</resources>

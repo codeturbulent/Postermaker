@@ -2,9 +2,12 @@ package com.grampradhan.posterstudio.ui.editor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grampradhan.posterstudio.core.data.db.CandidateProfileDao
 import com.grampradhan.posterstudio.core.data.db.DraftDao
 import com.grampradhan.posterstudio.core.data.model.LayerSnapshot
 import com.grampradhan.posterstudio.core.data.model.PosterDraft
+import com.grampradhan.posterstudio.core.data.model.SlotType
+import com.grampradhan.posterstudio.core.data.repository.TemplateRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class EditorUiState(
+    val templateId: String = "default",
     val layers: List<EditorLayer> = emptyList(),
     val selectedLayerId: String? = null,
     val inlineEditingTextId: String? = null,
@@ -28,7 +32,9 @@ data class EditorUiState(
 
 @HiltViewModel
 class EditorViewModel @Inject constructor(
-    private val draftDao: DraftDao
+    private val draftDao: DraftDao,
+    private val templateRepository: TemplateRepository,
+    private val candidateProfileDao: CandidateProfileDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EditorUiState())
@@ -39,6 +45,105 @@ class EditorViewModel @Inject constructor(
 
     init {
         initializeDefaultCanvas()
+    }
+
+    fun loadTemplate(templateId: String) {
+        viewModelScope.launch {
+            val template = templateRepository.getTemplateById(templateId) ?: return@launch
+            val profile = candidateProfileDao.getActiveProfile()
+
+            val newLayers = mutableListOf<EditorLayer>()
+
+            // 1. Background layer
+            val bgColor = if (template.backgroundUrl.startsWith("gradient:")) {
+                android.graphics.Color.parseColor(template.backgroundUrl.removePrefix("gradient:").split(":").first())
+            } else {
+                android.graphics.Color.WHITE
+            }
+            newLayers.add(EditorLayer.BackgroundLayer(color = bgColor))
+
+            var zCounter = 1
+
+            // 2. Predefined template text layers
+            template.predefinedTextLayers.forEach { textConfig ->
+                newLayers.add(
+                    EditorLayer.TextLayer(
+                        id = textConfig.layerId,
+                        name = "हेडलाइन",
+                        zIndex = zCounter++,
+                        translationX = 0f,
+                        translationY = (textConfig.yRatio - 0.5f) * 700f,
+                        text = textConfig.text,
+                        fontSizeSp = textConfig.fontSizeSp,
+                        fontName = textConfig.fontName,
+                        textColor = android.graphics.Color.parseColor(textConfig.colorHex),
+                        strokeWidthDp = textConfig.strokeWidthDp
+                    )
+                )
+            }
+
+            // 3. Auto-bind brand kit fields into template slots
+            if (profile != null) {
+                template.slotConfigs.forEach { slot ->
+                    when (slot.slotType) {
+                        SlotType.CANDIDATE_PHOTO -> {
+                            newLayers.add(
+                                EditorLayer.ImageLayer(
+                                    id = "slot_candidate_photo",
+                                    name = "प्रत्याशी फ़ोटो",
+                                    zIndex = zCounter++,
+                                    translationX = (slot.xRatio - 0.5f) * 600f,
+                                    translationY = (slot.yRatio - 0.5f) * 600f,
+                                    scale = 1.0f
+                                )
+                            )
+                        }
+                        SlotType.PARTY_SYMBOL -> {
+                            newLayers.add(
+                                EditorLayer.StickerLayer(
+                                    id = "slot_party_symbol",
+                                    name = "चुनाव चिन्ह: ${profile.partySymbolPath ?: "चिन्ह"}",
+                                    zIndex = zCounter++,
+                                    translationX = (slot.xRatio - 0.5f) * 600f,
+                                    translationY = (slot.yRatio - 0.5f) * 600f,
+                                    scale = 1.0f,
+                                    symbolKey = profile.partySymbolPath
+                                )
+                            )
+                        }
+                        SlotType.VILLAGE_TEXT -> {
+                            newLayers.add(
+                                EditorLayer.TextLayer(
+                                    id = "slot_candidate_name",
+                                    name = "प्रत्याशी नाम",
+                                    zIndex = zCounter++,
+                                    translationX = 0f,
+                                    translationY = (slot.yRatio - 0.5f) * 700f,
+                                    text = "${profile.candidateName} (${profile.designation})",
+                                    fontSizeSp = 24f,
+                                    textColor = android.graphics.Color.YELLOW,
+                                    strokeColor = android.graphics.Color.BLACK,
+                                    strokeWidthDp = 2f
+                                )
+                            )
+                        }
+                        else -> Unit
+                    }
+                }
+            }
+
+            undoStack.clear()
+            redoStack.clear()
+            _uiState.update {
+                it.copy(
+                    templateId = templateId,
+                    layers = newLayers,
+                    selectedLayerId = newLayers.lastOrNull { l -> l !is EditorLayer.BackgroundLayer }?.id,
+                    canUndo = false,
+                    canRedo = false
+                )
+            }
+        }
     }
 
     private fun initializeDefaultCanvas() {

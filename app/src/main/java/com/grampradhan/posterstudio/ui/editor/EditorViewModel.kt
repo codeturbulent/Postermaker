@@ -241,7 +241,7 @@ class EditorViewModel @Inject constructor(
                     layer.copy(text = newText)
                 } else layer
             }
-            state.copy(layers = updated, inlineEditingTextId = null)
+            state.copy(layers = updated, inlineEditingTextId = null, canUndo = true, canRedo = false)
         }
     }
 
@@ -268,6 +268,7 @@ class EditorViewModel @Inject constructor(
 
     fun onTransformEnd() {
         pushUndoSnapshot()
+        _uiState.update { it.copy(canUndo = true, canRedo = false) }
     }
 
     fun updateActiveTextLayer(transform: (EditorLayer.TextLayer) -> EditorLayer.TextLayer) {
@@ -279,7 +280,7 @@ class EditorViewModel @Inject constructor(
                     transform(layer)
                 } else layer
             }
-            state.copy(layers = updated)
+            state.copy(layers = updated, canUndo = true, canRedo = false)
         }
     }
 
@@ -296,7 +297,7 @@ class EditorViewModel @Inject constructor(
                 sorted[index] = current.copyWithTransform(zIndex = next.zIndex)
                 sorted[index + 1] = next.copyWithTransform(zIndex = currentZ)
             }
-            state.copy(layers = sorted)
+            state.copy(layers = sorted, canUndo = true, canRedo = false)
         }
     }
 
@@ -313,7 +314,7 @@ class EditorViewModel @Inject constructor(
                 sorted[index] = current.copyWithTransform(zIndex = prev.zIndex)
                 sorted[index - 1] = prev.copyWithTransform(zIndex = currentZ)
             }
-            state.copy(layers = sorted)
+            state.copy(layers = sorted, canUndo = true, canRedo = false)
         }
     }
 
@@ -326,7 +327,7 @@ class EditorViewModel @Inject constructor(
                     layer.copyWithTransform(isLocked = !layer.isLocked)
                 } else layer
             }
-            state.copy(layers = updated)
+            state.copy(layers = updated, canUndo = true, canRedo = false)
         }
     }
 
@@ -339,7 +340,7 @@ class EditorViewModel @Inject constructor(
                     layer.copyWithTransform(isFlippedHorizontal = !layer.isFlippedHorizontal)
                 } else layer
             }
-            state.copy(layers = updated)
+            state.copy(layers = updated, canUndo = true, canRedo = false)
         }
     }
 
@@ -350,7 +351,7 @@ class EditorViewModel @Inject constructor(
         pushUndoSnapshot()
         _uiState.update { state ->
             val updated = state.layers.filterNot { it.id == activeId }
-            state.copy(layers = updated, selectedLayerId = null)
+            state.copy(layers = updated, selectedLayerId = null, canUndo = true, canRedo = false)
         }
     }
 
@@ -391,7 +392,6 @@ class EditorViewModel @Inject constructor(
         if (undoStack.size >= 30) undoStack.removeFirst()
         undoStack.addLast(current)
         redoStack.clear()
-        _uiState.update { it.copy(canUndo = true, canRedo = false) }
     }
 
     fun toggleTypographySheet(visible: Boolean) {
@@ -431,7 +431,7 @@ class EditorViewModel @Inject constructor(
                     layer.copyWithTransform(translationX = targetX)
                 } else layer
             }
-            state.copy(photoAlignmentLeft = newAlignmentLeft, layers = updatedLayers)
+            state.copy(photoAlignmentLeft = newAlignmentLeft, layers = updatedLayers, canUndo = true, canRedo = false)
         }
     }
 
@@ -445,7 +445,7 @@ class EditorViewModel @Inject constructor(
                 val updated = state.layers.map {
                     if (it.id == activeId) (it as EditorLayer.TextLayer).copy(text = sloganText) else it
                 }
-                state.copy(layers = updated, isSloganPickerVisible = false)
+                state.copy(layers = updated, isSloganPickerVisible = false, canUndo = true, canRedo = false)
             } else {
                 // Find headline or slogan layer or create a new text layer
                 val existingSloganLayer = state.layers.find {
@@ -455,7 +455,7 @@ class EditorViewModel @Inject constructor(
                     val updated = state.layers.map {
                         if (it.id == existingSloganLayer.id) (it as EditorLayer.TextLayer).copy(text = sloganText) else it
                     }
-                    state.copy(layers = updated, selectedLayerId = existingSloganLayer.id, isSloganPickerVisible = false)
+                    state.copy(layers = updated, selectedLayerId = existingSloganLayer.id, isSloganPickerVisible = false, canUndo = true, canRedo = false)
                 } else {
                     val nextZ = (state.layers.maxOfOrNull { it.zIndex } ?: 0) + 1
                     val newLayer = EditorLayer.TextLayer(
@@ -474,7 +474,9 @@ class EditorViewModel @Inject constructor(
                     state.copy(
                         layers = state.layers + newLayer,
                         selectedLayerId = newLayer.id,
-                        isSloganPickerVisible = false
+                        isSloganPickerVisible = false,
+                        canUndo = true,
+                        canRedo = false
                     )
                 }
             }
@@ -500,7 +502,9 @@ class EditorViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 layers = it.layers + newLayer,
-                selectedLayerId = newLayer.id
+                selectedLayerId = newLayer.id,
+                canUndo = true,
+                canRedo = false
             )
         }
     }
@@ -520,7 +524,9 @@ class EditorViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 layers = it.layers + newLayer,
-                selectedLayerId = newLayer.id
+                selectedLayerId = newLayer.id,
+                canUndo = true,
+                canRedo = false
             )
         }
     }
@@ -534,7 +540,7 @@ class EditorViewModel @Inject constructor(
                         layer.copy(backgroundUrl = result.fullUrl, color = 0xFFFFFFFF.toInt())
                     } else layer
                 }
-                state.copy(layers = updated, isImageSearchVisible = false)
+                state.copy(layers = updated, isImageSearchVisible = false, canUndo = true, canRedo = false)
             } else {
                 val nextZ = (state.layers.maxOfOrNull { it.zIndex } ?: 0) + 1
                 val newLayer = EditorLayer.ImageLayer(
@@ -549,7 +555,9 @@ class EditorViewModel @Inject constructor(
                 state.copy(
                     layers = state.layers + newLayer,
                     selectedLayerId = newLayer.id,
-                    isImageSearchVisible = false
+                    isImageSearchVisible = false,
+                    canUndo = true,
+                    canRedo = false
                 )
             }
         }

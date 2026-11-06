@@ -57,6 +57,11 @@ class EditorViewModelTest {
             val sloganLayerBefore = initial.layers.find { it.id == "txt_slogan" } as? EditorLayer.TextLayer
             assertNotNull(sloganLayerBefore)
 
+            // Select slogan layer first
+            viewModel.selectLayer("txt_slogan")
+            val selected = awaitItem()
+            assertEquals("txt_slogan", selected.selectedLayerId)
+
             // Apply new slogan from Slogan Bank
             viewModel.applySlogan("गाँव की उन्नति, हमारा संकल्प")
             val updated = awaitItem()

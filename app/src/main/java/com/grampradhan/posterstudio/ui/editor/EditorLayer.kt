@@ -97,7 +97,8 @@ sealed class EditorLayer(
         override val isFlippedHorizontal: Boolean = false,
         override val isLocked: Boolean = false,
         val bitmap: Bitmap? = null,
-        val imagePath: String? = null
+        val imagePath: String? = null,
+        val imageUrl: String? = null
     ) : EditorLayer(id, name, zIndex, translationX, translationY, scale, rotation, isFlippedHorizontal, isLocked) {
         override fun copyWithTransform(
             translationX: Float,

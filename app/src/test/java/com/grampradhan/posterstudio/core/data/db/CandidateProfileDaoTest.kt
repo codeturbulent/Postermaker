@@ -83,6 +83,52 @@ class CandidateProfileDaoTest {
             assertEquals("श्रीमती सरिता देवी", emitted2?.candidateName)
             assertEquals(2L, emitted2?.id)
 
+            // Test setActiveProfile switching active profile back to profile1
+            dao.setActiveProfile(1L, 3000L)
+            val emitted3 = awaitItem()
+            assertNotNull(emitted3)
+            assertEquals("राम सिंह यादव", emitted3?.candidateName)
+            assertEquals(1L, emitted3?.id)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun observeAllProfiles_emitsFullListOfProfilesOrderedByUpdatedAt() = runBlocking {
+        val profile1 = CandidateProfile(
+            id = 1,
+            candidateName = "राम सिंह",
+            designation = "प्रधान",
+            gramPanchayat = "रामपुर",
+            vikasKhandBlock = "बक्शा",
+            district = "जौनपुर",
+            slogan = "विकास",
+            candidatePhotoPath = null,
+            partySymbolPath = null,
+            updatedAt = 1000L
+        )
+        val profile2 = CandidateProfile(
+            id = 2,
+            candidateName = "सरिता देवी",
+            designation = "बीडीसी",
+            gramPanchayat = "रामपुर",
+            vikasKhandBlock = "बक्शा",
+            district = "जौनपुर",
+            slogan = "सेवा",
+            candidatePhotoPath = null,
+            partySymbolPath = null,
+            updatedAt = 2000L
+        )
+
+        dao.insertOrUpdate(profile1)
+        dao.insertOrUpdate(profile2)
+
+        dao.observeAllProfiles().test {
+            val list = awaitItem()
+            assertEquals(2, list.size)
+            assertEquals(2L, list[0].id) // Most recent first
+            assertEquals(1L, list[1].id)
             cancelAndIgnoreRemainingEvents()
         }
     }

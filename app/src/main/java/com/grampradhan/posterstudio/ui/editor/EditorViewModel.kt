@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grampradhan.posterstudio.core.data.db.CandidateProfileDao
 import com.grampradhan.posterstudio.core.data.db.DraftDao
+import com.grampradhan.posterstudio.core.data.model.CandidateProfile
 import com.grampradhan.posterstudio.core.data.model.LayerSnapshot
 import com.grampradhan.posterstudio.core.data.model.PosterDraft
 import com.grampradhan.posterstudio.core.data.model.SlotType
+import com.grampradhan.posterstudio.core.data.repository.ImageSearchResult
+import com.grampradhan.posterstudio.core.data.repository.ImageSearchService
 import com.grampradhan.posterstudio.core.data.repository.TemplateRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +17,31 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
+
+val AVAILABLE_RIBBON_COLORS = listOf(
+    android.graphics.Color.parseColor("#D84315"), // Deep Kesariya / Saffron
+    android.graphics.Color.parseColor("#1B5E20"), // Bharat / Forest Green
+    android.graphics.Color.parseColor("#C62828"), // Kranti / Samajwadi Red
+    android.graphics.Color.parseColor("#0D47A1"), // Deep Navy Blue
+    android.graphics.Color.parseColor("#4A148C"), // Royal Purple
+    android.graphics.Color.parseColor("#3E2723"), // Deep Maroon
+    android.graphics.Color.parseColor("#212121")  // Slate Black
+)
+
+val STICKER_BADGES = listOf(
+    "🪔", // Diya
+    "🕉️", // Om
+    "🌾", // Kisan / Wheat
+    "🤝", // Namaste / Appeal
+    "🇮🇳", // Tiranga
+    "🗳️", // Vote / Ballot
+    "🚩", // Dhwaja
+    "🌺", // Kamal / Lotus
+    "✨", // Star
+    "🎉"  // Celebration
+)
 
 data class EditorUiState(
     val templateId: String = "default",
@@ -25,6 +52,12 @@ data class EditorUiState(
     val canRedo: Boolean = false,
     val isTypographySheetVisible: Boolean = false,
     val isLayersPanelVisible: Boolean = false,
+    val isSloganPickerVisible: Boolean = false,
+    val isImageSearchVisible: Boolean = false,
+    val aspectRatio: Float = 1.0f, // 1:1 = 1.0f, 4:5 = 0.8f, 9:16 = 0.5625f
+    val ribbonColor: Int = android.graphics.Color.parseColor("#D84315"),
+    val photoAlignmentLeft: Boolean = true,
+    val candidateProfile: CandidateProfile? = null,
     val isExporting: Boolean = false,
     val exportProgressMessage: String = "",
     val savedDraftId: Long? = null
@@ -34,7 +67,8 @@ data class EditorUiState(
 class EditorViewModel @Inject constructor(
     private val draftDao: DraftDao,
     private val templateRepository: TemplateRepository,
-    private val candidateProfileDao: CandidateProfileDao
+    private val candidateProfileDao: CandidateProfileDao,
+    val imageSearchService: ImageSearchService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EditorUiState())
@@ -55,12 +89,16 @@ class EditorViewModel @Inject constructor(
             val newLayers = mutableListOf<EditorLayer>()
 
             // 1. Background layer
-            val bgColor = if (template.backgroundUrl.startsWith("gradient:")) {
-                android.graphics.Color.parseColor(template.backgroundUrl.removePrefix("gradient:").split(":").first())
+            val bgLayer = if (template.backgroundUrl.startsWith("gradient:")) {
+                val hexColors = template.backgroundUrl.removePrefix("gradient:").split(":")
+                val parsedColor = runCatching { android.graphics.Color.parseColor(hexColors.first()) }.getOrDefault(android.graphics.Color.WHITE)
+                EditorLayer.BackgroundLayer(color = parsedColor, backgroundUrl = template.backgroundUrl)
+            } else if (template.backgroundUrl.isNotEmpty()) {
+                EditorLayer.BackgroundLayer(backgroundUrl = template.backgroundUrl)
             } else {
-                android.graphics.Color.WHITE
+                EditorLayer.BackgroundLayer(color = android.graphics.Color.WHITE)
             }
-            newLayers.add(EditorLayer.BackgroundLayer(color = bgColor))
+            newLayers.add(bgLayer)
 
             var zCounter = 1
 
@@ -72,11 +110,11 @@ class EditorViewModel @Inject constructor(
                         name = "हेडलाइन",
                         zIndex = zCounter++,
                         translationX = 0f,
-                        translationY = (textConfig.yRatio - 0.5f) * 700f,
+                        translationY = (textConfig.yRatio - 0.5f) * 600f,
                         text = textConfig.text,
                         fontSizeSp = textConfig.fontSizeSp,
                         fontName = textConfig.fontName,
-                        textColor = android.graphics.Color.parseColor(textConfig.colorHex),
+                        textColor = runCatching { android.graphics.Color.parseColor(textConfig.colorHex) }.getOrDefault(android.graphics.Color.WHITE),
                         strokeWidthDp = textConfig.strokeWidthDp
                     )
                 )
@@ -92,9 +130,10 @@ class EditorViewModel @Inject constructor(
                                     id = "slot_candidate_photo",
                                     name = "प्रत्याशी फ़ोटो",
                                     zIndex = zCounter++,
-                                    translationX = (slot.xRatio - 0.5f) * 600f,
-                                    translationY = (slot.yRatio - 0.5f) * 600f,
-                                    scale = 1.0f
+                                    translationX = (slot.xRatio - 0.5f) * 500f,
+                                    translationY = (slot.yRatio - 0.5f) * 500f,
+                                    scale = 1.0f,
+                                    imagePath = profile.candidatePhotoPath
                                 )
                             )
                         }
@@ -104,8 +143,8 @@ class EditorViewModel @Inject constructor(
                                     id = "slot_party_symbol",
                                     name = "चुनाव चिन्ह: ${profile.partySymbolPath ?: "चिन्ह"}",
                                     zIndex = zCounter++,
-                                    translationX = (slot.xRatio - 0.5f) * 600f,
-                                    translationY = (slot.yRatio - 0.5f) * 600f,
+                                    translationX = (slot.xRatio - 0.5f) * 500f,
+                                    translationY = (slot.yRatio - 0.5f) * 500f,
                                     scale = 1.0f,
                                     symbolKey = profile.partySymbolPath
                                 )
@@ -115,12 +154,12 @@ class EditorViewModel @Inject constructor(
                             newLayers.add(
                                 EditorLayer.TextLayer(
                                     id = "slot_candidate_name",
-                                    name = "प्रत्याशी नाम",
+                                    name = "प्रत्याशी नामपट्टी",
                                     zIndex = zCounter++,
                                     translationX = 0f,
-                                    translationY = (slot.yRatio - 0.5f) * 700f,
+                                    translationY = (slot.yRatio - 0.5f) * 600f,
                                     text = "${profile.candidateName} (${profile.designation})",
-                                    fontSizeSp = 24f,
+                                    fontSizeSp = 22f,
                                     textColor = android.graphics.Color.YELLOW,
                                     strokeColor = android.graphics.Color.BLACK,
                                     strokeWidthDp = 2f
@@ -132,6 +171,8 @@ class EditorViewModel @Inject constructor(
                 }
             }
 
+            val templateAspect = template.aspectRatio.widthRatio / template.aspectRatio.heightRatio
+
             undoStack.clear()
             redoStack.clear()
             _uiState.update {
@@ -139,6 +180,8 @@ class EditorViewModel @Inject constructor(
                     templateId = templateId,
                     layers = newLayers,
                     selectedLayerId = newLayers.lastOrNull { l -> l !is EditorLayer.BackgroundLayer }?.id,
+                    candidateProfile = profile,
+                    aspectRatio = templateAspect,
                     canUndo = false,
                     canRedo = false
                 )
@@ -156,9 +199,9 @@ class EditorViewModel @Inject constructor(
                 name = "स्लोगन",
                 zIndex = 1,
                 translationX = 0f,
-                translationY = -350f,
-                text = "सबका साथ, गाँव का विकास",
-                fontSizeSp = 32f,
+                translationY = -280f,
+                text = "सबका साथ, गाँव का संपूर्ण विकास",
+                fontSizeSp = 28f,
                 fontName = "Rozha One"
             ),
             EditorLayer.TextLayer(
@@ -166,10 +209,13 @@ class EditorViewModel @Inject constructor(
                 name = "प्रत्याशी नाम",
                 zIndex = 2,
                 translationX = 0f,
-                translationY = 320f,
-                text = "श्री राम सिंह यादव",
-                fontSizeSp = 40f,
-                fontName = "Baloo Bhai 2"
+                translationY = 280f,
+                text = "राजेश कुमार यादव (ग्राम प्रधान)",
+                fontSizeSp = 32f,
+                fontName = "Baloo Bhai 2",
+                textColor = android.graphics.Color.YELLOW,
+                strokeColor = android.graphics.Color.BLACK,
+                strokeWidthDp = 2.5f
             )
         )
         _uiState.update { it.copy(layers = initialLayers, selectedLayerId = "txt_candidate_name") }
@@ -354,6 +400,159 @@ class EditorViewModel @Inject constructor(
 
     fun toggleLayersPanel(visible: Boolean) {
         _uiState.update { it.copy(isLayersPanelVisible = visible) }
+    }
+
+    fun toggleSloganPicker(visible: Boolean) {
+        _uiState.update { it.copy(isSloganPickerVisible = visible) }
+    }
+
+    fun toggleImageSearch(visible: Boolean) {
+        _uiState.update { it.copy(isImageSearchVisible = visible) }
+    }
+
+    fun setAspectRatio(ratio: Float) {
+        _uiState.update { it.copy(aspectRatio = ratio) }
+    }
+
+    fun setRibbonColor(color: Int) {
+        _uiState.update { it.copy(ribbonColor = color) }
+    }
+
+    fun togglePhotoAlignment() {
+        pushUndoSnapshot()
+        val newAlignmentLeft = !_uiState.value.photoAlignmentLeft
+        _uiState.update { state ->
+            val updatedLayers = state.layers.map { layer ->
+                if (layer.id == "slot_candidate_photo" || layer.name.contains("फ़ोटो")) {
+                    val targetX = if (newAlignmentLeft) -160f else 160f
+                    layer.copyWithTransform(translationX = targetX)
+                } else if (layer.id == "slot_party_symbol" || layer.name.contains("चिन्ह")) {
+                    val targetX = if (newAlignmentLeft) 160f else -160f
+                    layer.copyWithTransform(translationX = targetX)
+                } else layer
+            }
+            state.copy(photoAlignmentLeft = newAlignmentLeft, layers = updatedLayers)
+        }
+    }
+
+    fun applySlogan(sloganText: String) {
+        pushUndoSnapshot()
+        _uiState.update { state ->
+            val activeId = state.selectedLayerId
+            val activeLayer = state.layers.find { it.id == activeId }
+
+            if (activeLayer is EditorLayer.TextLayer) {
+                val updated = state.layers.map {
+                    if (it.id == activeId) (it as EditorLayer.TextLayer).copy(text = sloganText) else it
+                }
+                state.copy(layers = updated, isSloganPickerVisible = false)
+            } else {
+                // Find headline or slogan layer or create a new text layer
+                val existingSloganLayer = state.layers.find {
+                    it is EditorLayer.TextLayer && (it.id.contains("slogan") || it.name.contains("स्लोगन") || it.name.contains("हेडलाइन"))
+                }
+                if (existingSloganLayer != null) {
+                    val updated = state.layers.map {
+                        if (it.id == existingSloganLayer.id) (it as EditorLayer.TextLayer).copy(text = sloganText) else it
+                    }
+                    state.copy(layers = updated, selectedLayerId = existingSloganLayer.id, isSloganPickerVisible = false)
+                } else {
+                    val nextZ = (state.layers.maxOfOrNull { it.zIndex } ?: 0) + 1
+                    val newLayer = EditorLayer.TextLayer(
+                        id = UUID.randomUUID().toString(),
+                        name = "स्लोगन",
+                        zIndex = nextZ,
+                        translationX = 0f,
+                        translationY = -180f,
+                        text = sloganText,
+                        fontSizeSp = 26f,
+                        fontName = "Rozha One",
+                        textColor = android.graphics.Color.WHITE,
+                        strokeColor = android.graphics.Color.BLACK,
+                        strokeWidthDp = 2f
+                    )
+                    state.copy(
+                        layers = state.layers + newLayer,
+                        selectedLayerId = newLayer.id,
+                        isSloganPickerVisible = false
+                    )
+                }
+            }
+        }
+    }
+
+    fun addNewText(text: String = "हार्दिक शुभकामनाएं") {
+        pushUndoSnapshot()
+        val nextZ = (_uiState.value.layers.maxOfOrNull { it.zIndex } ?: 0) + 1
+        val newLayer = EditorLayer.TextLayer(
+            id = UUID.randomUUID().toString(),
+            name = "टेक्स्ट",
+            zIndex = nextZ,
+            translationX = 0f,
+            translationY = 0f,
+            text = text,
+            fontSizeSp = 28f,
+            fontName = "Rozha One",
+            textColor = android.graphics.Color.YELLOW,
+            strokeColor = android.graphics.Color.BLACK,
+            strokeWidthDp = 2f
+        )
+        _uiState.update {
+            it.copy(
+                layers = it.layers + newLayer,
+                selectedLayerId = newLayer.id
+            )
+        }
+    }
+
+    fun addStickerBadge(emoji: String) {
+        pushUndoSnapshot()
+        val nextZ = (_uiState.value.layers.maxOfOrNull { it.zIndex } ?: 0) + 1
+        val newLayer = EditorLayer.StickerLayer(
+            id = UUID.randomUUID().toString(),
+            name = "स्टीकर $emoji",
+            zIndex = nextZ,
+            translationX = 140f,
+            translationY = -220f,
+            scale = 1.0f,
+            symbolKey = emoji
+        )
+        _uiState.update {
+            it.copy(
+                layers = it.layers + newLayer,
+                selectedLayerId = newLayer.id
+            )
+        }
+    }
+
+    fun addImageFromSearch(result: ImageSearchResult, asBackground: Boolean = false) {
+        pushUndoSnapshot()
+        _uiState.update { state ->
+            if (asBackground) {
+                val updated = state.layers.map { layer ->
+                    if (layer is EditorLayer.BackgroundLayer) {
+                        layer.copy(backgroundUrl = result.fullUrl, color = android.graphics.Color.WHITE)
+                    } else layer
+                }
+                state.copy(layers = updated, isImageSearchVisible = false)
+            } else {
+                val nextZ = (state.layers.maxOfOrNull { it.zIndex } ?: 0) + 1
+                val newLayer = EditorLayer.ImageLayer(
+                    id = UUID.randomUUID().toString(),
+                    name = result.title.take(15),
+                    zIndex = nextZ,
+                    translationX = 0f,
+                    translationY = 0f,
+                    scale = 1.0f,
+                    imageUrl = result.fullUrl
+                )
+                state.copy(
+                    layers = state.layers + newLayer,
+                    selectedLayerId = newLayer.id,
+                    isImageSearchVisible = false
+                )
+            }
+        }
     }
 
     fun saveDraft(templateId: String = "custom_draft") {

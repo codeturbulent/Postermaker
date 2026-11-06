@@ -14,12 +14,12 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
@@ -37,6 +38,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,7 +59,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.grampradhan.posterstudio.R
@@ -65,8 +66,7 @@ import com.grampradhan.posterstudio.core.data.model.CandidateProfile
 import com.grampradhan.posterstudio.core.data.model.PosterTemplate
 import com.grampradhan.posterstudio.core.data.model.SlotType
 import com.grampradhan.posterstudio.core.data.model.TemplateCategory
-import com.grampradhan.posterstudio.core.formatter.DevanagariTextFormatter
-import kotlin.math.roundToInt
+import com.grampradhan.posterstudio.core.data.model.UpcomingOccasion
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +90,12 @@ fun HomeScreen(
                 },
                 actions = {
                     IconButton(
+                        onClick = { viewModel.toggleProfileSwitcher(true) },
+                        modifier = Modifier.semantics { contentDescription = "प्रोफ़ाइल बदलें" }
+                    ) {
+                        Icon(Icons.Default.Group, contentDescription = null)
+                    }
+                    IconButton(
                         onClick = onNavigateToProfile,
                         modifier = Modifier.semantics { contentDescription = "प्रोफ़ाइल संपादित करें" }
                     ) {
@@ -103,47 +109,74 @@ fun HomeScreen(
         },
         modifier = modifier
     ) { paddingValues ->
-        Column(
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .padding(horizontal = 14.dp)
         ) {
-            // 1. Candidate Greeting Banner or Empty State CTA
-            if (uiState.activeProfile != null) {
-                CandidateGreetingCard(
-                    profile = uiState.activeProfile!!,
-                    onEditClick = onNavigateToProfile
-                )
-            } else {
-                EmptyProfilePromptCard(onSetupClick = onNavigateToProfile)
+            // 1. Candidate Greeting Banner
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                if (uiState.activeProfile != null) {
+                    CandidateGreetingCard(
+                        profile = uiState.activeProfile!!,
+                        profileCount = uiState.allProfiles.size,
+                        onEditClick = onNavigateToProfile,
+                        onSwitchClick = { viewModel.toggleProfileSwitcher(true) }
+                    )
+                } else {
+                    EmptyProfilePromptCard(onSetupClick = onNavigateToProfile)
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 2. Category Horizontal Filter Chips
-            CategoryFilterBar(
-                selectedCategory = uiState.selectedCategory,
-                onSelectCategory = viewModel::onSelectCategory
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 3. Auto-Filled Live Poster Grid
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 160.dp),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(uiState.templates, key = { it.id }) { template ->
-                    AutoFilledTemplateCard(
-                        template = template,
-                        profile = uiState.activeProfile,
-                        onClick = { onSelectTemplate(template.id) }
+            // 2. Upcoming Occasions Carousel (From Flutter Version)
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    Text(
+                        text = "आगामी पर्व एवं विशेष अभियान",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    OccasionsCarousel(
+                        occasions = uiState.upcomingOccasions,
+                        onSelectCategory = viewModel::onSelectCategory
                     )
                 }
             }
+
+            // 3. Category Horizontal Filter Chips
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                CategoryFilterBar(
+                    selectedCategory = uiState.selectedCategory,
+                    onSelectCategory = viewModel::onSelectCategory
+                )
+            }
+
+            // 4. Auto-Filled Live Poster Grid Items
+            items(uiState.templates, key = { it.id }) { template ->
+                AutoFilledTemplateCard(
+                    template = template,
+                    profile = uiState.activeProfile,
+                    onClick = { onSelectTemplate(template.id) }
+                )
+            }
+        }
+
+        // Profile Switcher Bottom Sheet
+        if (uiState.isProfileSwitcherVisible) {
+            ProfileSwitcherBottomSheet(
+                profiles = uiState.allProfiles,
+                activeProfileId = uiState.activeProfile?.id,
+                onSelectProfile = viewModel::switchActiveProfile,
+                onAddNewProfile = onNavigateToProfile,
+                onDismiss = { viewModel.toggleProfileSwitcher(false) }
+            )
         }
     }
 }
@@ -151,24 +184,25 @@ fun HomeScreen(
 @Composable
 private fun CandidateGreetingCard(
     profile: CandidateProfile,
-    onEditClick: () -> Unit
+    profileCount: Int,
+    onEditClick: () -> Unit,
+    onSwitchClick: () -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
             .clickable { onEditClick() },
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(50.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
@@ -177,11 +211,11 @@ private fun CandidateGreetingCard(
                     Icons.Default.Person,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(30.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -197,6 +231,16 @@ private fun CandidateGreetingCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+
+            if (profileCount > 1) {
+                OutlinedButton(
+                    onClick = onSwitchClick,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text("बदलें", fontSize = 12.sp)
+                }
+            }
         }
     }
 }
@@ -204,9 +248,7 @@ private fun CandidateGreetingCard(
 @Composable
 private fun EmptyProfilePromptCard(onSetupClick: () -> Unit) {
     ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
@@ -239,6 +281,55 @@ private fun EmptyProfilePromptCard(onSetupClick: () -> Unit) {
 }
 
 @Composable
+private fun OccasionsCarousel(
+    occasions: List<UpcomingOccasion>,
+    onSelectCategory: (TemplateCategory) -> Unit
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(occasions) { occasion ->
+            ElevatedCard(
+                modifier = Modifier
+                    .width(220.dp)
+                    .clickable { onSelectCategory(occasion.category) },
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = occasion.badgeText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(text = occasion.icon, fontSize = 18.sp)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = occasion.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = occasion.subtitle,
+                        fontSize = 11.sp,
+                        color = Color.Gray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CategoryFilterBar(
     selectedCategory: TemplateCategory,
     onSelectCategory: (TemplateCategory) -> Unit
@@ -252,7 +343,6 @@ private fun CategoryFilterBar(
     )
 
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -266,9 +356,6 @@ private fun CategoryFilterBar(
     }
 }
 
-/**
- * Renders a live auto-filled poster thumbnail compositing brand kit details into template slots.
- */
 @Composable
 private fun AutoFilledTemplateCard(
     template: PosterTemplate,
@@ -290,9 +377,8 @@ private fun AutoFilledTemplateCard(
                     .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
             ) {
                 val cardWidth = maxWidth
-                val cardHeight = maxHeight
 
-                // 1. Template Background
+                // Template Background
                 val backgroundBrush = parseGradientBrush(template.backgroundUrl)
                 Box(
                     modifier = Modifier
@@ -300,7 +386,7 @@ private fun AutoFilledTemplateCard(
                         .background(backgroundBrush)
                 )
 
-                // 2. Predefined Template Text
+                // Predefined Template Headline
                 template.predefinedTextLayers.firstOrNull()?.let { headline ->
                     Text(
                         text = headline.text,
@@ -317,7 +403,7 @@ private fun AutoFilledTemplateCard(
                     )
                 }
 
-                // 3. Auto-bound Brand Kit Overlays
+                // Auto-bound Brand Kit Overlays
                 if (profile != null) {
                     template.slotConfigs.forEach { slot ->
                         when (slot.slotType) {

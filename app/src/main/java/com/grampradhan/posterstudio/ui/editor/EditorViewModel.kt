@@ -91,12 +91,12 @@ class EditorViewModel @Inject constructor(
             // 1. Background layer
             val bgLayer = if (template.backgroundUrl.startsWith("gradient:")) {
                 val hexColors = template.backgroundUrl.removePrefix("gradient:").split(":")
-                val parsedColor = runCatching { android.graphics.Color.parseColor(hexColors.first()) }.getOrDefault(android.graphics.Color.WHITE)
+                val parsedColor = runCatching { android.graphics.Color.parseColor(hexColors.first()) }.getOrDefault(0xFFFFFFFF.toInt())
                 EditorLayer.BackgroundLayer(color = parsedColor, backgroundUrl = template.backgroundUrl)
             } else if (template.backgroundUrl.isNotEmpty()) {
                 EditorLayer.BackgroundLayer(backgroundUrl = template.backgroundUrl)
             } else {
-                EditorLayer.BackgroundLayer(color = android.graphics.Color.WHITE)
+                EditorLayer.BackgroundLayer(color = 0xFFFFFFFF.toInt())
             }
             newLayers.add(bgLayer)
 
@@ -114,7 +114,7 @@ class EditorViewModel @Inject constructor(
                         text = textConfig.text,
                         fontSizeSp = textConfig.fontSizeSp,
                         fontName = textConfig.fontName,
-                        textColor = runCatching { android.graphics.Color.parseColor(textConfig.colorHex) }.getOrDefault(android.graphics.Color.WHITE),
+                        textColor = runCatching { android.graphics.Color.parseColor(textConfig.colorHex) }.getOrDefault(0xFFFFFFFF.toInt()),
                         strokeWidthDp = textConfig.strokeWidthDp
                     )
                 )
@@ -160,8 +160,8 @@ class EditorViewModel @Inject constructor(
                                     translationY = (slot.yRatio - 0.5f) * 600f,
                                     text = "${profile.candidateName} (${profile.designation})",
                                     fontSizeSp = 22f,
-                                    textColor = android.graphics.Color.YELLOW,
-                                    strokeColor = android.graphics.Color.BLACK,
+                                    textColor = 0xFFFFFF00.toInt(),
+                                    strokeColor = 0xFF000000.toInt(),
                                     strokeWidthDp = 2f
                                 )
                             )
@@ -213,8 +213,8 @@ class EditorViewModel @Inject constructor(
                 text = "राजेश कुमार यादव (ग्राम प्रधान)",
                 fontSizeSp = 32f,
                 fontName = "Baloo Bhai 2",
-                textColor = android.graphics.Color.YELLOW,
-                strokeColor = android.graphics.Color.BLACK,
+                textColor = 0xFFFFFF00.toInt(),
+                strokeColor = 0xFF000000.toInt(),
                 strokeWidthDp = 2.5f
             )
         )
@@ -467,8 +467,8 @@ class EditorViewModel @Inject constructor(
                         text = sloganText,
                         fontSizeSp = 26f,
                         fontName = "Rozha One",
-                        textColor = android.graphics.Color.WHITE,
-                        strokeColor = android.graphics.Color.BLACK,
+                        textColor = 0xFFFFFFFF.toInt(),
+                        strokeColor = 0xFF000000.toInt(),
                         strokeWidthDp = 2f
                     )
                     state.copy(
@@ -493,8 +493,8 @@ class EditorViewModel @Inject constructor(
             text = text,
             fontSizeSp = 28f,
             fontName = "Rozha One",
-            textColor = android.graphics.Color.YELLOW,
-            strokeColor = android.graphics.Color.BLACK,
+            textColor = 0xFFFFFF00.toInt(),
+            strokeColor = 0xFF000000.toInt(),
             strokeWidthDp = 2f
         )
         _uiState.update {
@@ -531,7 +531,7 @@ class EditorViewModel @Inject constructor(
             if (asBackground) {
                 val updated = state.layers.map { layer ->
                     if (layer is EditorLayer.BackgroundLayer) {
-                        layer.copy(backgroundUrl = result.fullUrl, color = android.graphics.Color.WHITE)
+                        layer.copy(backgroundUrl = result.fullUrl, color = 0xFFFFFFFF.toInt())
                     } else layer
                 }
                 state.copy(layers = updated, isImageSearchVisible = false)

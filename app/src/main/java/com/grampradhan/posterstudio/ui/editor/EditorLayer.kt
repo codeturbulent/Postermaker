@@ -30,7 +30,7 @@ sealed class EditorLayer(
         override val id: String = "bg_layer",
         override val name: String = "पृष्ठभूमि (Background)",
         override val zIndex: Int = 0,
-        val color: Int = android.graphics.Color.WHITE,
+        val color: Int = 0xFFFFFFFF.toInt(),
         val bitmap: Bitmap? = null,
         val backgroundUrl: String? = null
     ) : EditorLayer(id, name, zIndex, 0f, 0f, 1f, 0f, false, true) {
@@ -57,10 +57,10 @@ sealed class EditorLayer(
         override val isLocked: Boolean = false,
         val text: String,
         val fontName: String = "Rozha One",
-        val typeface: Typeface = Typeface.DEFAULT_BOLD,
-        val textColor: Int = android.graphics.Color.WHITE,
+        val typeface: Typeface? = null,
+        val textColor: Int = 0xFFFFFFFF.toInt(),
         val fontSizeSp: Float = 28f,
-        val strokeColor: Int = android.graphics.Color.BLACK,
+        val strokeColor: Int = 0xFF000000.toInt(),
         val strokeWidthDp: Float = 2f,
         val hasShadow: Boolean = true,
         val curvedArc: Float = 0f, // -180f to +180f

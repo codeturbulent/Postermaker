@@ -182,7 +182,7 @@ class BitmapExportEngine @Inject constructor(
                 color = Color.argb(160, 0, 0, 0)
                 textSize = effectiveTextSize
                 textAlign = Paint.Align.CENTER
-                typeface = layer.typeface
+                typeface = layer.typeface ?: Typeface.DEFAULT_BOLD
             }
             drawTextInternal(canvas, layer.text, 4f * globalScale, 4f * globalScale, shadowPaint, layer.curvedArc)
         }
@@ -197,7 +197,7 @@ class BitmapExportEngine @Inject constructor(
                 textAlign = Paint.Align.CENTER
                 strokeJoin = Paint.Join.ROUND
                 strokeCap = Paint.Cap.ROUND
-                typeface = layer.typeface
+                typeface = layer.typeface ?: Typeface.DEFAULT_BOLD
             }
             drawTextInternal(canvas, layer.text, 0f, 0f, strokePaint, layer.curvedArc)
         }
@@ -208,7 +208,7 @@ class BitmapExportEngine @Inject constructor(
             style = Paint.Style.FILL
             textSize = effectiveTextSize
             textAlign = Paint.Align.CENTER
-            typeface = layer.typeface
+            typeface = layer.typeface ?: Typeface.DEFAULT_BOLD
         }
         drawTextInternal(canvas, layer.text, 0f, 0f, textPaint, layer.curvedArc)
     }

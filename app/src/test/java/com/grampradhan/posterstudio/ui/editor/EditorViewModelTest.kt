@@ -76,7 +76,7 @@ class EditorViewModelTest {
     fun testSetRibbonColor() = runTest {
         viewModel.uiState.test {
             val initial = awaitItem()
-            val newColor = android.graphics.Color.parseColor("#1B5E20") // Bharat Green
+            val newColor = 0xFF1B5E20.toInt() // Bharat Green
 
             viewModel.setRibbonColor(newColor)
             val updated = awaitItem()

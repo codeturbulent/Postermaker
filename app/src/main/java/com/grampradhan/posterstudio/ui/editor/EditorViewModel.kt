@@ -21,13 +21,13 @@ import java.util.UUID
 import javax.inject.Inject
 
 val AVAILABLE_RIBBON_COLORS = listOf(
-    android.graphics.Color.parseColor("#D84315"), // Deep Kesariya / Saffron
-    android.graphics.Color.parseColor("#1B5E20"), // Bharat / Forest Green
-    android.graphics.Color.parseColor("#C62828"), // Kranti / Samajwadi Red
-    android.graphics.Color.parseColor("#0D47A1"), // Deep Navy Blue
-    android.graphics.Color.parseColor("#4A148C"), // Royal Purple
-    android.graphics.Color.parseColor("#3E2723"), // Deep Maroon
-    android.graphics.Color.parseColor("#212121")  // Slate Black
+    0xFFD84315.toInt(), // Deep Kesariya / Saffron
+    0xFF1B5E20.toInt(), // Bharat / Forest Green
+    0xFFC62828.toInt(), // Kranti / Samajwadi Red
+    0xFF0D47A1.toInt(), // Deep Navy Blue
+    0xFF4A148C.toInt(), // Royal Purple
+    0xFF3E2723.toInt(), // Deep Maroon
+    0xFF212121.toInt()  // Slate Black
 )
 
 val STICKER_BADGES = listOf(
@@ -55,7 +55,7 @@ data class EditorUiState(
     val isSloganPickerVisible: Boolean = false,
     val isImageSearchVisible: Boolean = false,
     val aspectRatio: Float = 1.0f, // 1:1 = 1.0f, 4:5 = 0.8f, 9:16 = 0.5625f
-    val ribbonColor: Int = android.graphics.Color.parseColor("#D84315"),
+    val ribbonColor: Int = 0xFFD84315.toInt(),
     val photoAlignmentLeft: Boolean = true,
     val candidateProfile: CandidateProfile? = null,
     val isExporting: Boolean = false,
@@ -192,7 +192,7 @@ class EditorViewModel @Inject constructor(
     private fun initializeDefaultCanvas() {
         val initialLayers = listOf(
             EditorLayer.BackgroundLayer(
-                color = android.graphics.Color.parseColor("#FF5722")
+                color = 0xFFFF5722.toInt()
             ),
             EditorLayer.TextLayer(
                 id = "txt_slogan",

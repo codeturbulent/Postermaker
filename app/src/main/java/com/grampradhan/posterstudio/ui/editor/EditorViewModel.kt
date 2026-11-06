@@ -68,7 +68,7 @@ class EditorViewModel @Inject constructor(
     private val draftDao: DraftDao,
     private val templateRepository: TemplateRepository,
     private val candidateProfileDao: CandidateProfileDao,
-    val imageSearchService: ImageSearchService
+    val imageSearchService: ImageSearchService = ImageSearchService()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EditorUiState())

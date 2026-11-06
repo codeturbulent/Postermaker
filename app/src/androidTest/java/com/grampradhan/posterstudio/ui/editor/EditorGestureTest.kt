@@ -36,7 +36,7 @@ class EditorGestureTest {
         }
 
         // Verify initial candidate name text layer is displayed
-        val candidateNode = composeTestRule.onNodeWithText("श्री राम सिंह यादव")
+        val candidateNode = composeTestRule.onNodeWithText("राजेश कुमार यादव (ग्राम प्रधान)")
         candidateNode.assertIsDisplayed()
 
         val initialX = viewModel.uiState.value.layers
@@ -65,7 +65,7 @@ class EditorGestureTest {
             )
         }
 
-        val candidateNode = composeTestRule.onNodeWithText("श्री राम सिंह यादव")
+        val candidateNode = composeTestRule.onNodeWithText("राजेश कुमार यादव (ग्राम प्रधान)")
 
         // Perform double-click on candidate text layer
         candidateNode.performTouchInput {
